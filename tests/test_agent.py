@@ -153,3 +153,10 @@ def test_memory_reflection_and_calibration(tmp_path: Path) -> None:
 def test_memory_reflect_unknown_match_raises(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="no stored prediction"):
         PredictionMemory(tmp_path / "p.jsonl").reflect_on_outcome("X-Y-2026-01-01", "home")
+
+
+def test_empty_store_degrades_gracefully(tmp_path: Path) -> None:
+    """Fresh deployment: calibration and lessons must not error on nothing."""
+    mem = PredictionMemory(tmp_path / "empty.jsonl")
+    assert mem.rolling_calibration() == {"settled": 0}
+    assert mem.recent_lessons() == []

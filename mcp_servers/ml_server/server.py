@@ -137,7 +137,10 @@ def explain_prediction(match_id: str, top_k: int = 5) -> dict[str, Any]:
     """Top feature contributions (TreeSHAP) for this match's most recent
     predict_match call — use to write evidence-grounded rationales, e.g.
     'availability_away (-0.31) was the largest driver'. Requires
-    predict_match to have been called for match_id in this session."""
+    predict_match to have been called for match_id in this session. The
+    prediction store is per-process: in a multi-worker deployment, route
+    both calls to the same worker (sticky session) or back the store with
+    Redis before scaling out."""
     return run_explain(match_id, top_k)
 
 

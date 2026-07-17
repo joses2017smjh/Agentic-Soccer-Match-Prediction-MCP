@@ -16,10 +16,10 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from mcp_servers.common import run_server, ttl_cache, with_as_of
-from mcp_servers.data_server.backend import DataBackend, DemoBackend
+from mcp_servers.data_server.backend import DataBackend, get_backend
 
 server = FastMCP("sports-data")
-_backend: DataBackend = DemoBackend()
+_backend: DataBackend = get_backend()
 
 
 @ttl_cache(seconds=300)

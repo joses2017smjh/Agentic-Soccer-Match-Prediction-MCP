@@ -220,6 +220,18 @@ Official Python MCP SDK (FastMCP). STDIO for local dev, **Streamable HTTP** in c
 
 Walk-forward, expanding-window backtests with **asserted** temporal separation. Every fold scores the model vs the **de-vigged closing line** vs a naive train-frequency baseline on the identical match set (log loss, Brier, RPS), plus reliability curves, ECE, empirical conformal coverage, and simulated ROI of the suggestion layer settled at payable odds (flat or Kelly stakes). The closing line is the benchmark to beat and the report does not editorialize when it wins.
 
+### Real-data results — EPL 2019–2025 (`python -m scripts.backtest_epl`)
+
+Trained and walked forward on **real matches and real closing odds** from football-data.co.uk (free, no key): 1,520 scored matches over 4 expanding-window folds. Full report: [docs/backtest_epl.md](docs/backtest_epl.md).
+
+| forecaster | log loss | Brier | RPS |
+|---|---|---|---|
+| **de-vigged closing line** | **0.9448** | **0.5597** | **0.1922** |
+| model (XGBoost + guarded isotonic) | 1.0383 | 0.5874 | 0.2035 |
+| naive baseline | 1.0652 | 0.6446 | 0.2337 |
+
+**The closing line wins — reported, as promised.** The model beats the naive baseline on every metric in every fold and loses to the close in every fold: the market is the stronger forecaster, and this system's value is calibrated structure (consistent grids, uncertainty sets, availability propagation), not out-predicting Pinnacle. Empirical conformal coverage: **0.888 vs the 0.90 target** — mild undercoverage from temporal drift (teams change between seasons; exchangeability bends), reported rather than hidden. The suggestion layer settled at payable closing odds returns **−1.8% ROI over 1,795 flagged bets**: betting into the close with a close-anchored model doesn't clear the vig, exactly as theory predicts.
+
 ### Agent evals (Phase B) — `evals/`
 
 **28-task golden set** across five categories (happy paths over many phrasings/teams, stakes-HITL, fault injection, prompt injection, unparseable), run in CI as a regression gate. Current results:
@@ -276,7 +288,7 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 
 ## ⚠️ Honest Limitations
 
-- **Demo data, demo model.** The bundled artifact is trained on *synthetic* data (its model card says so) and the data/news backends are deterministic stand-ins. The provider interfaces are the real design; wiring StatsBomb/FBref/The Odds API/RSS and retraining is the intended next step.
+- **Partially real data.** Team stats and h2h now come from a real provider (football-data.co.uk, selected with `DATA_BACKEND=football_data`), and the offline backtest trains on real matches and closing odds. But the *served* artifact bundle is still the synthetic demo, this source's "xG" is a shots-quality proxy, and live odds / squads / news remain demo backends — each unsupported tool fails loudly and the agent discloses the gap. Contract tests (`tests/test_backend_contract.py`) hold every backend to the same protocol.
 - **New MCP servers ≠ new model features.** Adding a weather server extends the *agent's reasoning and rationale immediately*, but the trained models cannot consume features they were never trained on — unmodeled signals may only appear as clearly-labeled qualitative adjustments until retraining.
 - **Agentic mode costs.** The ReAct arm adds latency, dollars, and nondeterminism over the fixed graph — that is exactly why the A/B report exists, and why its numbers are measured or absent, never simulated.
 - **Beating the closing line is genuinely hard.** The offline suite is built to report honestly when the market wins (its own test asserts the market beats a noisy model).

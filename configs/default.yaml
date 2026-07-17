@@ -39,5 +39,9 @@ suggestions:
   confidence_tiers: {high: 0.08, medium: 0.05, low: 0.03}
 
 eval:
-  test_tournaments: []          # filled per experiment, e.g. ["WC2022", "EURO2024"]
+  # walk-forward test folds; scripts/backtest_epl.py trains on everything
+  # earlier and scores each of these in turn (see docs/backtest_epl.md)
+  test_tournaments: ["EPL-2021-2022", "EPL-2022-2023",
+                     "EPL-2023-2024", "EPL-2024-2025"]
   walk_forward_step: season
+  min_train_seasons: 2
