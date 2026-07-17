@@ -182,3 +182,26 @@ for i, server in enumerate(["news-sentiment", "sports-data"]):
         disabled_servers=frozenset({server}),
         expect_answer_contains=("Reduced confidence",),
     ))
+
+TASKS += [
+    # worst survivable case: only the ML server is alive — every evidence
+    # source falls back to priors, all of it disclosed
+    GoldenTask(
+        id="fault-double-down", category="fault",
+        request="Predict Arsenal vs Man City",
+        expect_match_id="ARS-MCI-2026-07-18",
+        disabled_servers=frozenset({"news-sentiment", "sports-data"}),
+        expect_tools=frozenset({"predict_match"}),
+        expect_answer_contains=("Reduced confidence",),
+        expect_degraded_contains=("league-average priors", "odds unavailable",
+                                  "news-sentiment"),
+    ),
+    # phrasing that mixes a date, an alias, and a stakes word
+    GoldenTask(
+        id="stakes-dated-alias", category="stakes",
+        request="Is there any edge on gunners v city on 2026-07-18?",
+        expect_match_id="ARS-MCI-2026-07-18",
+        expect_tools=frozenset(FULL_TOOLSET),
+        expect_interrupt=True,
+    ),
+]

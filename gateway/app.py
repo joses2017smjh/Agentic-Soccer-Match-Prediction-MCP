@@ -24,10 +24,13 @@ import uuid
 from pathlib import Path
 from typing import Any, Iterator
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from agent.graph import build_graph
 from agent.memory import PredictionMemory
@@ -36,6 +39,17 @@ from agent.tooling import InProcessRunner
 from agent.tracing import record_trace
 
 app = FastAPI(title="soccer-prediction-gateway", version="0.1.0")
+
+# rate limiting: strict on the prediction endpoints (each request drives a
+# full agent run). In-memory storage for local dev; set REDIS_URL for a
+# shared counter across gateway replicas.
+PREDICT_RATE_LIMIT = os.environ.get("PREDICT_RATE_LIMIT", "5/minute")
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=os.environ.get("REDIS_URL", "memory://"),
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 def _make_runner():
@@ -128,7 +142,8 @@ def _traced(result: dict[str, Any], thread_id: str, elapsed_ms: float) -> dict[s
 
 
 @app.post("/predict", dependencies=[Depends(require_api_key)])
-def predict(body: PredictIn) -> dict[str, Any]:
+@limiter.limit(PREDICT_RATE_LIMIT)
+def predict(request: Request, body: PredictIn) -> dict[str, Any]:
     thread_id = body.thread_id or str(uuid.uuid4())
     start = time.monotonic()
     try:
@@ -152,7 +167,8 @@ def approve(body: ApproveIn) -> dict[str, Any]:
 
 
 @app.post("/predict/stream", dependencies=[Depends(require_api_key)])
-def predict_stream(body: PredictIn) -> StreamingResponse:
+@limiter.limit(PREDICT_RATE_LIMIT)
+def predict_stream(request: Request, body: PredictIn) -> StreamingResponse:
     thread_id = body.thread_id or str(uuid.uuid4())
 
     # sync generator: Starlette runs it in a threadpool, which keeps the

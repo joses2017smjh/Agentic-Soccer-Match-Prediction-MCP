@@ -12,7 +12,7 @@ from evals.runner import run_all
 
 
 def test_golden_set_size_and_coverage() -> None:
-    assert len(TASKS) >= 25
+    assert len(TASKS) >= 30
     categories = {t.category for t in TASKS}
     assert categories == {"happy", "stakes", "fault", "injection", "unparseable"}
 

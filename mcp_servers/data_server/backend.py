@@ -126,10 +126,15 @@ class DemoBackend:
         }
 
     def fixture_context(self, match_id: str) -> dict[str, Any]:
+        from src.data.tournaments import tournament_features
+
         home, away, date = parse_match_id(match_id)
         rng = _rng("fixture", match_id)
         stage = str(rng.choice(["group", "quarterfinal", "semifinal", "final"]))
-        return {
+        tournament_id = str(rng.choice([
+            "uefa_champions_league", "club_world_cup", "copa_libertadores",
+        ]))
+        ctx: dict[str, Any] = {
             "match_id": match_id,
             "home_team": home, "away_team": away, "date": date,
             "stage": stage,
@@ -139,3 +144,6 @@ class DemoBackend:
             "away_rest_days": int(rng.integers(3, 8)),
             "stakes": str(rng.choice(["must_win", "normal", "dead_rubber"])),
         }
+        # hierarchy coordinates: Confederation → Tournament → Stage → Match
+        ctx.update(tournament_features(tournament_id, stage))
+        return ctx

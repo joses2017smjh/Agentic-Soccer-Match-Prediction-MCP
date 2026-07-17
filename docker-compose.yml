@@ -37,5 +37,7 @@ services:
       MCP_ML_URL: http://ml-server:8103/mcp
       # GATEWAY_API_KEY: change-me           # enable auth in anything shared
       # ANTHROPIC_API_KEY: ...               # enables ReAct mode + LLM judge
+      PREDICT_RATE_LIMIT: 5/minute           # per-IP limit on agent-driving routes
+      # REDIS_URL: redis://redis:6379        # shared limiter across replicas
     ports: ["8000:8000"]
     depends_on: [data-server, news-server, ml-server]

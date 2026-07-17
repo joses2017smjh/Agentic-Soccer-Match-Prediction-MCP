@@ -14,6 +14,7 @@ def client(tmp_path_factory) -> TestClient:
 
     os.environ["GATEWAY_API_KEY"] = "test-key"
     os.environ["EV_THRESHOLD"] = "-1.0"  # flag everything → approval flow fires
+    os.environ["PREDICT_RATE_LIMIT"] = "1000/minute"  # limits tested separately
     os.environ["MEMORY_PATH"] = str(
         tmp_path_factory.mktemp("mem") / "predictions.jsonl"
     )
