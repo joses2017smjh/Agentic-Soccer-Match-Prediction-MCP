@@ -1,0 +1,41 @@
+services:
+  data-server:
+    build: .
+    command: python -m mcp_servers.data_server.server
+    environment:
+      MCP_TRANSPORT: streamable-http
+      FASTMCP_HOST: 0.0.0.0
+      FASTMCP_PORT: "8101"
+    ports: ["8101:8101"]
+
+  news-server:
+    build: .
+    command: python -m mcp_servers.news_server.server
+    environment:
+      MCP_TRANSPORT: streamable-http
+      FASTMCP_HOST: 0.0.0.0
+      FASTMCP_PORT: "8102"
+    ports: ["8102:8102"]
+
+  ml-server:
+    build: .
+    command: python -m mcp_servers.ml_server.server
+    environment:
+      MCP_TRANSPORT: streamable-http
+      FASTMCP_HOST: 0.0.0.0
+      FASTMCP_PORT: "8103"
+      # ARTIFACT_ROOT: /app/data/artifacts   # mount real bundles here
+    ports: ["8103:8103"]
+
+  gateway:
+    build: .
+    command: uvicorn gateway.app:app --host 0.0.0.0 --port 8000
+    environment:
+      AGENT_RUNNER: mcp
+      MCP_DATA_URL: http://data-server:8101/mcp
+      MCP_NEWS_URL: http://news-server:8102/mcp
+      MCP_ML_URL: http://ml-server:8103/mcp
+      # GATEWAY_API_KEY: change-me           # enable auth in anything shared
+      # ANTHROPIC_API_KEY: ...               # enables ReAct mode + LLM judge
+    ports: ["8000:8000"]
+    depends_on: [data-server, news-server, ml-server]

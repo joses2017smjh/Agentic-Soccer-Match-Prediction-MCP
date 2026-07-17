@@ -1,0 +1,43 @@
+# Master config — every run is driven from here. Values below are defaults;
+# override per-experiment with a second YAML merged on top.
+
+seed: 42
+
+providers:
+  events: statsbomb_open        # src/data/ interface implementations
+  match_stats: fbref
+  fixtures_lineups: api_football
+  odds: the_odds_api
+  news: [rss, newsapi]
+
+api_keys:                       # read from env vars, never stored here
+  api_football: API_FOOTBALL_KEY
+  the_odds_api: ODDS_API_KEY
+  newsapi: NEWSAPI_KEY
+
+features:
+  form_window_matches: 10       # rolling window for team form
+  form_decay_half_life: 5       # matches; exponential recency decay
+  odds_snapshot: closest_before_cutoff
+  prediction_cutoff_minutes_before_kickoff: 60
+
+news:
+  sentiment_model: cardiffnlp/twitter-roberta-base-sentiment-latest
+  sentiment_decay_half_life_days: 3
+  availability_source_priority: [api_football, parser]
+
+models:
+  dixon_coles:
+    rho_init: -0.1
+    max_goals: 10               # scoreline grid size
+  calibration: isotonic
+  player_allocation: poisson
+
+suggestions:
+  ev_threshold: 0.03            # flag selections with EV > 3%
+  kelly_fraction: 0.25
+  confidence_tiers: {high: 0.08, medium: 0.05, low: 0.03}
+
+eval:
+  test_tournaments: []          # filled per experiment, e.g. ["WC2022", "EURO2024"]
+  walk_forward_step: season
