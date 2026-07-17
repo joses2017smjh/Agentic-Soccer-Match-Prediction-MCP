@@ -41,3 +41,11 @@ services:
       # REDIS_URL: redis://redis:6379        # shared limiter across replicas
     ports: ["8000:8000"]
     depends_on: [data-server, news-server, ml-server]
+
+  ui:
+    build: ./ui
+    environment:
+      GATEWAY_URL: http://gateway:8000
+      # GATEWAY_API_KEY: change-me           # must match the gateway's key
+    ports: ["3000:3000"]
+    depends_on: [gateway]
