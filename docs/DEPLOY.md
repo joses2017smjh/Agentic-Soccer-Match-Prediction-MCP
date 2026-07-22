@@ -35,20 +35,37 @@ Generate a key with `openssl rand -hex 16`.
 
 ## Option A — Local (see it run on your machine)
 
+**With Docker** (needs Docker Desktop running):
+
 ```bash
 GATEWAY_API_KEY=$(openssl rand -hex 16) \
   docker compose -f docker-compose.simple.yml up --build
 # UI → http://localhost:3000   ·   gateway → http://localhost:8000
 ```
 
-Or without Docker, two terminals:
+**Without Docker** (verified path — this is exactly how it was tested), two
+terminals:
 
 ```bash
 # terminal 1 — backend
+pip install -e .                                  # first time only
+python -m scripts.build_demo_artifacts            # first time only
 GATEWAY_API_KEY=devkey uvicorn gateway.app:app --port 8000
+
 # terminal 2 — frontend
-cd ui && GATEWAY_URL=http://localhost:8000 GATEWAY_API_KEY=devkey npm run dev
+cd ui && npm install                              # first time only
+GATEWAY_URL=http://localhost:8000 GATEWAY_API_KEY=devkey npm run dev
 ```
+
+Then verify the whole thing from a third terminal:
+
+```bash
+BASE=http://localhost:8000 KEY=devkey ./scripts/smoke_test.sh   # 14 checks
+```
+
+and open http://localhost:3000 in a browser — try "Predict Arsenal vs Man
+City" and "Arsenal vs Man City — any value bets?" (the second triggers the
+human-approval panel).
 
 ## Option B — One cheap VM (shows the full distributed architecture)
 
@@ -67,27 +84,44 @@ Open port 3000 in the firewall (and 8000 only if you want the raw API public).
 For a domain + HTTPS, put Caddy in front of the UI — a two-line Caddyfile
 (`your-domain { reverse_proxy localhost:3000 }`) gets you automatic TLS.
 
-## Option C — Split managed, mostly free (cleanest portfolio URL)
+## Option C — Vercel (UI) + Render (backend) — the recommended portfolio path
 
-**Frontend → Vercel** (native Next.js, auto-deploys from GitHub):
+This repo ships `render.yaml` (backend Blueprint) and `ui/vercel.json` so both
+sides are close to push-to-deploy. Pick a key first and use the **same value**
+in both places: `openssl rand -hex 16`.
 
-1. Import the repo at vercel.com; set **Root Directory = `ui`**.
-2. Add env vars: `GATEWAY_URL` = your backend URL (from the next step),
-   `GATEWAY_API_KEY` = your key.
-3. Deploy. Vercel gives you `https://<project>.vercel.app`.
+### Step 1 — backend on Render (do this first; you need its URL)
 
-**Backend → Render / Railway / Fly.io** (one container, `inprocess`):
+1. Push the repo to GitHub (already done).
+2. render.com → **New → Blueprint** → select the repo. Render reads
+   `render.yaml` and creates the `matchintel-gateway` Docker service.
+3. It will prompt for `GATEWAY_API_KEY` (marked `sync: false`) — paste your key.
+4. Deploy. First build takes a few minutes (installs xgboost/langgraph, bakes
+   the demo artifacts). When live you get `https://matchintel-gateway.onrender.com`.
+5. Sanity-check it: `BASE=https://matchintel-gateway.onrender.com KEY=<key>
+   ./scripts/smoke_test.sh`.
 
-- **Render**: New → Web Service → the repo → *Docker* environment (uses the root
-  `Dockerfile`). Add env vars `GATEWAY_API_KEY`, `PREDICT_RATE_LIMIT=5/minute`,
-  `AGENT_RUNNER=inprocess`. Render gives `https://<svc>.onrender.com` — put that
-  in Vercel's `GATEWAY_URL`. (Free tier sleeps on idle; first request after
-  idle is slow. Fine for a portfolio.)
-- **Fly.io**: `fly launch` (detects the Dockerfile), `fly secrets set
-  GATEWAY_API_KEY=…`, `fly deploy`.
+Note: the free plan has 512 MB RAM and sleeps after inactivity (first request
+after idle is slow, ~30 s cold start). Both are fine for a portfolio; bump the
+plan if you see out-of-memory in the logs.
 
-The two deploys are independent; the UI reaches the backend only via
-`GATEWAY_URL`, so update that one var if the backend URL changes.
+### Step 2 — frontend on Vercel
+
+1. vercel.com → **Add New → Project** → import the repo.
+2. Set **Root Directory = `ui`** (Vercel then auto-detects Next.js via
+   `ui/vercel.json`).
+3. Add two Environment Variables (Production):
+   - `GATEWAY_URL` = `https://matchintel-gateway.onrender.com` (from step 1)
+   - `GATEWAY_API_KEY` = the same key you gave Render
+4. Deploy → `https://<project>.vercel.app` is your live site.
+
+The two deploys are independent and both auto-redeploy on `git push`. The UI
+reaches the backend only through `GATEWAY_URL`, and the key is attached
+server-side in the Route Handlers — so rotating the key means updating it in
+Render and Vercel, nothing in code.
+
+> Swap Render for Fly.io if you want no idle-sleep: `fly launch` detects the
+> Dockerfile, `fly secrets set GATEWAY_API_KEY=…`, `fly deploy`.
 
 ---
 

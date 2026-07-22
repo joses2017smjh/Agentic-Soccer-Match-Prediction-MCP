@@ -19,4 +19,6 @@ RUN pip install --no-cache-dir -e . \
 RUN python -m scripts.build_demo_artifacts
 
 EXPOSE 8000 8101 8102 8103
-CMD ["uvicorn", "gateway.app:app", "--host", "0.0.0.0", "--port", "8000"]
+# honor $PORT when a host (Render/Fly/Cloud Run) assigns one; default 8000
+# for local/compose (where the service `command:` sets the port explicitly)
+CMD ["sh", "-c", "uvicorn gateway.app:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,0 +1,27 @@
+# Render Blueprint — the backend gateway as ONE container (inprocess mode).
+# Deploy: push this file, then on render.com → New → Blueprint → pick the repo.
+# Render builds the root Dockerfile and injects $PORT (the app honors it).
+#
+# After it deploys, copy the service URL (https://<name>.onrender.com) and the
+# GATEWAY_API_KEY value into the Vercel project's env vars (see docs/DEPLOY.md).
+
+services:
+  - type: web
+    name: matchintel-gateway
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free                 # 512 MB; enough for the demo model. Bump if OOM.
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: AGENT_RUNNER
+        value: inprocess        # one container; no separate MCP servers
+      - key: PREDICT_RATE_LIMIT
+        value: 5/minute
+      - key: DATA_BACKEND
+        value: demo
+      - key: GATEWAY_API_KEY
+        sync: false             # set the SAME value here and in Vercel
+      # - key: ANTHROPIC_API_KEY  # optional: enables ReAct mode + LLM judge
+      #   sync: false
