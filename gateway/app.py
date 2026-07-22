@@ -61,10 +61,27 @@ def _make_runner():
     return InProcessRunner()
 
 
+_runner = _make_runner()
 _graph = build_graph(
-    _make_runner(),
+    _runner,
     ev_threshold=float(os.environ.get("EV_THRESHOLD", "0.03")),
 )
+# the cognitive-swarm mode shares the same MCP tooling; toggled per request
+# or globally with AGENT_MODE. Built lazily so a workflow-only deploy pays
+# nothing for it.
+_swarm = None
+
+
+def _swarm_graph():
+    global _swarm
+    if _swarm is None:
+        from agent.swarm.supervisor import build_swarm
+
+        _swarm = build_swarm(_runner)
+    return _swarm
+
+
+DEFAULT_MODE = os.environ.get("AGENT_MODE", "workflow")
 _memory = PredictionMemory(
     Path(os.environ.get("MEMORY_PATH", "data/memory/predictions.jsonl"))
 )
@@ -79,6 +96,12 @@ def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
 class PredictIn(BaseModel):
     text: str = Field(..., examples=["Predict Arsenal vs Man City, any value bets?"])
     thread_id: str | None = None
+    mode: str | None = Field(
+        default=None, pattern="^(workflow|swarm)$",
+        description="workflow (fixed graph, HITL) or swarm (cognitive swarm: "
+                    "DAG planner + parallel executors + adversarial critic). "
+                    "Defaults to AGENT_MODE.",
+    )
 
 
 class ApproveIn(BaseModel):
@@ -144,10 +167,13 @@ def health() -> dict[str, Any]:
     return {"ok": True, "model_version": version}
 
 
-def _traced(result: dict[str, Any], thread_id: str, elapsed_ms: float) -> dict[str, Any]:
+def _traced(
+    result: dict[str, Any], thread_id: str, elapsed_ms: float, mode: str = "workflow"
+) -> dict[str, Any]:
     payload = _payload(result, thread_id)
+    payload["mode"] = mode
     record_trace(
-        thread_id=thread_id, mode="workflow",
+        thread_id=thread_id, mode=mode,
         state=AgentState.model_validate(
             {k: v for k, v in result.items() if k != "__interrupt__"}
         ),
@@ -160,15 +186,24 @@ def _traced(result: dict[str, Any], thread_id: str, elapsed_ms: float) -> dict[s
 @limiter.limit(PREDICT_RATE_LIMIT)
 def predict(request: Request, body: PredictIn) -> dict[str, Any]:
     thread_id = body.thread_id or str(uuid.uuid4())
+    mode = body.mode or DEFAULT_MODE
     start = time.monotonic()
     try:
-        result = _graph.invoke(
-            AgentState(request=ParsedRequest(raw_text=body.text)),
-            config=_config(thread_id),
-        )
+        if mode == "swarm":
+            from agent.swarm.state import SwarmState
+
+            result = _swarm_graph().invoke(
+                SwarmState(request=ParsedRequest(raw_text=body.text)),
+                config=_config(thread_id),
+            )
+        else:
+            result = _graph.invoke(
+                AgentState(request=ParsedRequest(raw_text=body.text)),
+                config=_config(thread_id),
+            )
     except ValueError as exc:  # unparseable request
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return _traced(result, thread_id, (time.monotonic() - start) * 1000)
+    return _traced(result, thread_id, (time.monotonic() - start) * 1000, mode)
 
 
 @app.post("/approve", dependencies=[Depends(require_api_key)])

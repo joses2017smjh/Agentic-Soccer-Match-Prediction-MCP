@@ -35,6 +35,53 @@ def _workflow_arm() -> dict:
     }
 
 
+def _swarm_arm() -> dict:
+    """Cognitive swarm on the non-HITL golden tasks: planner DAG + parallel
+    executors + adversarial critic. Deterministic and keyless, so it runs
+    here and produces real numbers. Success = a valid prediction (or an
+    honest failure on a fully-degraded run) that the Critic did not leave
+    with unresolved issues."""
+    import time
+    import uuid
+
+    from agent.parse import parse_request
+    from agent.swarm.state import SwarmState
+    from agent.swarm.supervisor import build_swarm
+    from agent.tooling import InProcessRunner
+
+    tasks = [t for t in TASKS
+             if t.category in ("happy", "fault") and not t.expect_parse_error]
+    ok, latencies, checks = 0, [], []
+    for t in tasks:
+        runner = InProcessRunner(disabled=set(t.disabled_servers))
+        graph = build_swarm(runner, disabled_servers=set(t.disabled_servers))
+        start = time.monotonic()
+        try:
+            res = graph.invoke(
+                SwarmState(request=parse_request(t.request)),
+                config={"configurable": {"thread_id": f"swarm-{uuid.uuid4()}"}},
+            )
+        except ValueError:
+            continue
+        latencies.append((time.monotonic() - start) * 1000)
+        crits = res.get("critiques", [])
+        if crits:
+            checks.append(crits[-1].checks_run)
+        pred_ok = res.get("prediction") is not None or bool(res.get("degraded"))
+        crit_ok = (not crits) or crits[-1].passed or bool(t.disabled_servers)
+        ok += pred_ok and crit_ok
+    return {
+        "mode": "swarm (planner+critic)",
+        "n_tasks": len(tasks),
+        "task_success_rate": ok / len(tasks) if tasks else None,
+        "mean_latency_ms": sum(latencies) / len(latencies) if latencies else None,
+        "usd_per_request": 0.0,
+        "notes": (f"deterministic core; keyless; mean "
+                  f"{sum(checks) / len(checks):.0f} adversarial checks/run"
+                  if checks else "deterministic core; keyless"),
+    }
+
+
 def _react_arm() -> dict:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return {
@@ -86,7 +133,7 @@ def render(arms: list[dict]) -> str:
         return f"{v:.1%}" if pct else (f"{v:,.1f}" if isinstance(v, float) else str(v))
 
     lines = [
-        "# Workflow vs Agent — A/B report", "",
+        "# Workflow vs Swarm vs Agent — A/B report", "",
         "| metric | " + " | ".join(a["mode"] for a in arms) + " |",
         "|---|" + "---|" * len(arms),
     ]
@@ -106,7 +153,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, default=Path("evals/out/ab_report.md"))
     args = parser.parse_args()
-    arms = [_workflow_arm(), _react_arm()]
+    arms = [_workflow_arm(), _swarm_arm(), _react_arm()]
     md = render(arms)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(md)

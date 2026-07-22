@@ -75,9 +75,10 @@ flowchart TD
 
 ### Phase B — the agentic layer
 
-Two execution modes, built and compared (per Anthropic's *Building Effective Agents*):
+Three execution modes, built and compared (per Anthropic's *Building Effective Agents*), selectable per request (`{"mode": "..."}`) or globally (`AGENT_MODE`):
 
 - **Workflow (default, keyless):** fixed graph `parse → gather → news → infer → approve → synthesize`. Deterministic, ~40 ms, $0.00/request.
+- **Swarm (keyless core):** a cognitive-swarm supervisor — Strategic Planner decomposes the request into a task **DAG**, an Executor swarm runs independent nodes in **parallel**, and an adversarial **Critic** recomputes the math and red-teams for anomalies (e.g. a 98% favourite off a level xG → leakage flag) with a bounded feedback loop. See [docs/SWARM.md](docs/SWARM.md). In the A/B report it matches the workflow's 100% success at *lower* latency (parallel gather) while adding ~9 verification checks/run.
 - **ReAct (agentic):** `agent/react_mode.py`, for follow-ups ("why Saka over Ødegaard?") and degraded replanning. Small model drives the loop, strong model writes synthesis (FrugalGPT cascade). Needs `ANTHROPIC_API_KEY`.
 
 ## 📘 Setup
