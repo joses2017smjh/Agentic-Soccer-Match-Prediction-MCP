@@ -226,3 +226,63 @@ export interface Bracket {
   champion: string;
   model: Record<string, number | string>;
 }
+
+// ---- correlated parlay pricer ----
+
+export interface ParlayLegInput {
+  match_id: string;
+  leg_type: string;
+  selection: string;
+  line?: number;
+  decimal_odds?: number;
+  team_side?: string;
+  xg_share?: number;
+}
+
+export interface ParlayLegResult {
+  match_id: string;
+  leg_type: string;
+  selection: string;
+  marginal_prob: number;
+  decimal_odds: number;
+  implied_prob: number;
+}
+
+export interface ParlayMatchGroup {
+  match_id: string;
+  joint_prob: number;
+  independent_prob: number;
+  correlation_factor: number;
+  mu_home: number;
+  mu_away: number;
+  n_legs: number;
+}
+
+export interface ParlayResult {
+  legs: ParlayLegResult[];
+  match_groups: ParlayMatchGroup[];
+  joint_probability: number;
+  independent_probability: number;
+  correlation_factor: number;
+  model_fair_odds: number;
+  sportsbook_parlay_odds: number;
+  edge: number;
+  ev: number;
+  kelly_fraction: number;
+  correlation_direction: string;
+  analysis: string;
+}
+
+// ---- chat / conversational layer ----
+
+export interface ChatAction {
+  type: "navigate";
+  route: string;
+}
+
+export interface ChatResponse {
+  reply: string;
+  action?: ChatAction;
+  suggested_input?: string;
+  intent: string;
+}

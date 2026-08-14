@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
+import { ChatWidget } from "@/components/features/chat/chat-widget";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           flex-col px-3 sm:px-4">
           {children}
         </div>
+        <ChatWidget />
       </body>
     </html>
   );

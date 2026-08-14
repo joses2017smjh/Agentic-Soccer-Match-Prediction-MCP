@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/", label: "Leagues" },
   { href: "/bracket", label: "WWC Bracket" },
   { href: "/predict", label: "Ask the Agent" },
+  { href: "/parlay", label: "Parlay Builder" },
 ];
 
 export function Nav() {

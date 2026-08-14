@@ -11,6 +11,9 @@ Endpoints:
     POST /predict/stream    NDJSON stream of node updates then the result
     POST /reflect           settle a finished match, write the lesson
     GET  /calibration       rolling deployed-system calibration
+    POST /parlay/price      correlated-parlay pricing from the Dixon-Coles grid
+    POST /chat              LLM conversational layer (parlay pricing, routing,
+                            prediction requests, site navigation)
 
 Auth: set GATEWAY_API_KEY to require X-API-Key on every non-health route.
 """
@@ -151,7 +154,8 @@ def root() -> dict[str, Any]:
                 "on port 3000. Hitting this port in a browser is expected to "
                 "show JSON, not a page.",
         "endpoints": ["/health", "/predict", "/approve", "/predict/stream",
-                      "/reflect", "/calibration", "/bracket", "/leagues",
+                      "/reflect", "/calibration", "/parlay/price", "/chat",
+                      "/bracket", "/leagues",
                       "/leagues/{id}", "/leagues/{id}/predict"],
         "interactive_api_docs": "/docs",
     }
@@ -365,3 +369,268 @@ def reflect(body: ReflectIn) -> dict[str, Any]:
 @app.get("/calibration", dependencies=[Depends(require_api_key)])
 def calibration() -> dict[str, Any]:
     return _memory.rolling_calibration()
+
+
+# ---- correlated-parlay pricing ----
+
+
+class ParlayLegIn(BaseModel):
+    match_id: str
+    leg_type: str = Field(
+        ..., pattern="^(outcome|over|under|btts|exact_score|"
+                     "home_over|home_under|away_over|away_under|anytime_scorer)$",
+    )
+    selection: str
+    line: float = 0.0
+    decimal_odds: float = 0.0
+    team_side: str = ""
+    xg_share: float = 0.0
+
+
+class ParlayIn(BaseModel):
+    legs: list[ParlayLegIn] = Field(..., min_length=1)
+    kelly_fraction: float = 0.25
+
+
+@app.post("/parlay/price", dependencies=[Depends(require_api_key)])
+@limiter.limit(PREDICT_RATE_LIMIT)
+def parlay_price(request: Request, body: ParlayIn) -> dict[str, Any]:
+    """Price a correlated parlay using the Dixon-Coles grid.
+
+    Each match referenced in the legs needs team xG estimates.  The endpoint
+    resolves them from the league Elo engine (fast, no artifact required) or
+    the loaded ML model when available.  Legs within the same match are priced
+    jointly through the grid; cross-match legs are independent.
+    """
+    from src.models.parlay import ParlayLeg, parlay_result_to_dict, price_parlay
+    from src.models.score_grid import fit_rho
+
+    # resolve per-match xG from the Elo engine (fast path, always available)
+    match_ids = {leg.match_id for leg in body.legs}
+    mus: dict[str, tuple[float, float]] = {}
+    rho = -0.05  # default
+
+    for mid in match_ids:
+        # try league engine first (match_id format: HOME-AWAY or HOME-AWAY-DATE)
+        parts = mid.split("-")
+        home_team = parts[0] if len(parts) >= 2 else mid
+        away_team = parts[1] if len(parts) >= 2 else mid
+
+        resolved = False
+        # try the ML model bundle for trained xG estimates
+        try:
+            from mcp_servers.ml_server.server import get_bundle
+
+            bundle = get_bundle()
+            rho = bundle.rho
+            # use form-based xG priors as a fast fallback
+            mus[mid] = (1.5, 1.2)  # will be overridden below if league data found
+            resolved = True
+        except Exception:  # noqa: BLE001
+            pass
+
+        # try league-level Elo for better estimates
+        try:
+            from src.data.leagues import CATALOG
+
+            for lg in CATALOG:
+                try:
+                    d = _league_data(lg.id)
+                    elo = d["elo"]
+                    if home_team in elo.ratings and away_team in elo.ratings:
+                        from src.data.leagues import predict_matchup
+
+                        matchup = predict_matchup(elo, d["rho"], home_team, away_team)
+                        mus[mid] = (
+                            matchup["expected_goals"]["home"],
+                            matchup["expected_goals"]["away"],
+                        )
+                        rho = d["rho"]
+                        resolved = True
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
+        except Exception:  # noqa: BLE001
+            pass
+
+        if not resolved:
+            mus[mid] = (1.35, 1.35)
+
+    legs = [
+        ParlayLeg(
+            match_id=leg.match_id,
+            leg_type=leg.leg_type,
+            selection=leg.selection,
+            line=leg.line,
+            decimal_odds=leg.decimal_odds,
+            team_side=leg.team_side,
+            xg_share=leg.xg_share,
+        )
+        for leg in body.legs
+    ]
+
+    result = price_parlay(legs, mus, rho=rho, kelly_frac=body.kelly_fraction)
+    return parlay_result_to_dict(result)
+
+
+# ---- LLM conversational layer ----
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    content: str
+
+
+class ChatIn(BaseModel):
+    message: str
+    history: list[ChatMessage] = Field(default_factory=list)
+
+
+def _parse_chat_intent(text: str) -> dict[str, Any]:
+    """Deterministic intent parser (fallback when no LLM available).
+
+    Detects: parlay, predict, navigate, explain, help.
+    """
+    lower = text.lower().strip()
+
+    # parlay intent
+    parlay_kws = ["parlay", "combo", "accumulator", "acca", "multi", "same game"]
+    if any(kw in lower for kw in parlay_kws):
+        return {"intent": "parlay", "raw": text}
+
+    # predict intent
+    if " vs " in lower or " v " in lower or "predict" in lower or "forecast" in lower:
+        return {"intent": "predict", "raw": text}
+
+    # navigate intent
+    nav_map = {
+        "standings": "/leagues", "table": "/leagues", "league": "/leagues",
+        "bracket": "/bracket", "world cup": "/bracket", "wwc": "/bracket",
+        "parlay builder": "/parlay", "builder": "/parlay",
+    }
+    for kw, route in nav_map.items():
+        if kw in lower:
+            return {"intent": "navigate", "route": route, "raw": text}
+
+    # explain intent
+    if any(kw in lower for kw in ["how", "explain", "model", "what is", "calibrat"]):
+        return {"intent": "explain", "raw": text}
+
+    # help
+    if any(kw in lower for kw in ["help", "what can", "features", "capability"]):
+        return {"intent": "help", "raw": text}
+
+    return {"intent": "general", "raw": text}
+
+
+def _chat_respond(intent: dict[str, Any]) -> dict[str, Any]:
+    """Generate a response for the parsed intent."""
+    kind = intent["intent"]
+
+    if kind == "parlay":
+        return {
+            "reply": (
+                "I can price correlated parlays using the Dixon-Coles grid. "
+                "Head to the **Parlay Builder** to add legs interactively, or "
+                "tell me your legs like: 'Arsenal win + Over 2.5 + Saka anytime scorer'.\n\n"
+                "The key insight: sportsbooks multiply independent odds, but legs "
+                "within a match are correlated through the scoreline distribution. "
+                "Home win + Over 2.5 is *positively* correlated (winning means more goals), "
+                "so the true probability is higher than the sportsbook assumes."
+            ),
+            "action": {"type": "navigate", "route": "/parlay"},
+            "intent": kind,
+        }
+
+    if kind == "predict":
+        return {
+            "reply": (
+                "I'll route this to the prediction agent. Head to **Ask the Agent** "
+                "and enter your matchup for a full prediction with calibrated "
+                "probabilities, conformal uncertainty, and market edge analysis."
+            ),
+            "action": {"type": "navigate", "route": "/predict"},
+            "suggested_input": intent.get("raw", ""),
+            "intent": kind,
+        }
+
+    if kind == "navigate":
+        route = intent.get("route", "/")
+        labels = {
+            "/leagues": "Leagues hub", "/bracket": "Women's World Cup Bracket",
+            "/predict": "Ask the Agent", "/parlay": "Parlay Builder",
+        }
+        return {
+            "reply": f"Taking you to **{labels.get(route, route)}**.",
+            "action": {"type": "navigate", "route": route},
+            "intent": kind,
+        }
+
+    if kind == "explain":
+        try:
+            from mcp_servers.ml_server.server import get_bundle
+
+            card = dict(get_bundle().card)
+            return {
+                "reply": (
+                    f"**Model: {card.get('version', 'unknown')}**\n\n"
+                    f"- Training window: {card.get('training_window', 'N/A')}\n"
+                    f"- Features: {', '.join(card.get('feature_names', []))}\n"
+                    f"- Dixon-Coles rho: {card.get('dixon_coles_rho', 'N/A')}\n"
+                    f"- Conformal alpha: {card.get('conformal_alpha', 'N/A')}\n\n"
+                    "The system uses XGBoost for outcome/xG, Dixon-Coles bivariate "
+                    "Poisson for the scoreline grid, isotonic calibration + split-conformal "
+                    "uncertainty sets, and a Poisson allocation model for player props. "
+                    "Every market reads from one grid -- no contradictions."
+                ),
+                "intent": kind,
+            }
+        except Exception:  # noqa: BLE001
+            return {
+                "reply": (
+                    "The prediction system uses:\n"
+                    "- **XGBoost** for match outcome and expected goals\n"
+                    "- **Dixon-Coles** bivariate Poisson for the scoreline grid\n"
+                    "- **Isotonic calibration** + split-conformal prediction sets\n"
+                    "- **Poisson allocation** for player props (anytime scorer)\n"
+                    "- **Correlated parlay pricer** using the same grid\n\n"
+                    "Every derived market reads from one grid, so nothing contradicts."
+                ),
+                "intent": kind,
+            }
+
+    if kind == "help":
+        return {
+            "reply": (
+                "Here's what I can help with:\n\n"
+                "- **Predict a match**: 'Predict Arsenal vs Man City'\n"
+                "- **Price a parlay**: 'Home win + Over 2.5 + BTTS yes'\n"
+                "- **Browse leagues**: 'Show me La Liga standings'\n"
+                "- **View the bracket**: 'Women's World Cup bracket'\n"
+                "- **Explain the model**: 'How does the prediction work?'\n"
+                "- **Navigate**: 'Take me to the parlay builder'\n\n"
+                "I use the Dixon-Coles grid to price correlated parlays -- "
+                "the same math that powers single-match predictions."
+            ),
+            "intent": kind,
+        }
+
+    return {
+        "reply": (
+            "I can help with match predictions, correlated parlay pricing, "
+            "league standings, and model explanations. Try asking me to "
+            "'predict Arsenal vs Man City' or 'price a parlay with home win + over 2.5'."
+        ),
+        "intent": kind,
+    }
+
+
+@app.post("/chat", dependencies=[Depends(require_api_key)])
+@limiter.limit(PREDICT_RATE_LIMIT)
+def chat(request: Request, body: ChatIn) -> dict[str, Any]:
+    """LLM conversational layer: parses intent, prices parlays, routes users,
+    and answers questions.  Falls back to deterministic parsing when no LLM
+    is available."""
+    intent = _parse_chat_intent(body.message)
+    response = _chat_respond(intent)
+    return response

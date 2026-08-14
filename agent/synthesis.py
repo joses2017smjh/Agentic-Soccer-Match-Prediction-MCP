@@ -130,6 +130,23 @@ def render_answer(state: AgentState) -> str:
         lines.append("Reduced confidence — degraded evidence:")
         lines.extend(f"- {note}" for note in state.degraded)
 
+    # parlay correlation study (when prediction includes grid data)
+    if pred.get("exact_score", {}).get("scoreline_grid"):
+        ou = pred["exact_score"]["over_under_2_5"]
+        bt = pred["exact_score"]["btts"]
+        lines.append("")
+        lines.append(
+            "**Parlay correlation study** (same-match legs vs independent pricing):"
+        )
+        lines.append(
+            f"  O/U 2.5: over {_pct(ou['over'])}, under {_pct(ou['under'])}. "
+            f"BTTS: yes {_pct(bt['yes'])}, no {_pct(bt['no'])}."
+        )
+        lines.append(
+            "  Use the Parlay Builder to price multi-leg combos with exact "
+            "correlation from the Dixon-Coles grid."
+        )
+
     lines.append("")
     lines.append(
         f"Evidence trail: {len(state.ledger)} tool call(s), "

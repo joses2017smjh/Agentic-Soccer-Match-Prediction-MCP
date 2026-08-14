@@ -25,6 +25,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp_servers.common import run_server, with_as_of
 from src.models.artifact import ArtifactBundle
 from src.models.gbm import OUTCOME_CLASSES
+from src.models.parlay import ParlayLeg, parlay_result_to_dict, price_parlay
 from src.models.predict import compose_prediction
 from src.models.suggestions import MarketQuote
 
@@ -152,6 +153,37 @@ def get_model_card() -> dict[str, Any]:
     a match_context."""
     bundle = get_bundle()
     return with_as_of(dict(bundle.card))
+
+
+@server.tool()
+def price_parlay_bet(legs: list[dict], kelly_fraction: float = 0.25) -> dict[str, Any]:
+    """Price a correlated parlay using the Dixon-Coles grid.
+
+    Each leg is a dict with: match_id, leg_type (outcome|over|under|btts|
+    exact_score|anytime_scorer), selection (home|draw|away|yes|no|"2-1"|
+    player name), and optionally line (for over/under), decimal_odds
+    (sportsbook price), team_side and xg_share (for anytime_scorer legs).
+
+    Same-match legs are priced jointly through the grid, capturing
+    correlation that independent-odds multiplication misses.  Returns
+    joint probability, correlation factor, model fair odds, edge vs
+    sportsbook, and per-leg and per-match breakdowns."""
+    bundle = get_bundle()
+    parsed = [ParlayLeg(**l) for l in legs]
+    match_ids = {l.match_id for l in parsed}
+
+    # resolve xG for each match from stored predictions or default
+    mus: dict[str, tuple[float, float]] = {}
+    for mid in match_ids:
+        stored = _prediction_store.get(mid)
+        if stored and "result" in stored:
+            xg = stored["result"].get("expected_goals", {})
+            mus[mid] = (xg.get("home", 1.35), xg.get("away", 1.35))
+        else:
+            mus[mid] = (1.35, 1.35)
+
+    result = price_parlay(parsed, mus, rho=bundle.rho, kelly_frac=kelly_fraction)
+    return with_as_of(parlay_result_to_dict(result))
 
 
 if __name__ == "__main__":
