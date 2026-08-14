@@ -15,6 +15,8 @@ export async function gatewayFetch(
 ): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
+  // ngrok free tier returns an interstitial HTML page unless this header is set
+  headers.set("ngrok-skip-browser-warning", "true");
   const key = process.env.GATEWAY_API_KEY;
   if (key) headers.set("X-API-Key", key);
 
