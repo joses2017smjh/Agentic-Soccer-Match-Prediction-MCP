@@ -273,6 +273,78 @@ export interface ParlayResult {
   analysis: string;
 }
 
+// ---- evaluation harness (Westworld-style mixed verifiers) ----
+
+export interface VerifierDetail {
+  name: string;
+  score: number;
+  passed: boolean;
+  details: Record<string, unknown>;
+}
+
+export interface EvaluationResult {
+  match_id: string;
+  composite_score: number;
+  reward_hacking_safe: boolean;
+  verifiers: VerifierDetail[];
+  reward_hacking_test: {
+    floor: number;
+    empty_score: number;
+    empty_below_floor: boolean;
+    uniform_score: number;
+    uniform_below_floor: boolean;
+    harness_safe: boolean;
+  };
+  details: Record<string, unknown>;
+}
+
+export interface StageContribution {
+  stage: string;
+  mean_score: number;
+  std_score: number;
+  correlation_with_composite: number;
+  weight: number;
+  weighted_contribution: number;
+}
+
+export interface AttributionReport {
+  n_evaluated: number;
+  mean_composite: number;
+  std_composite: number;
+  binding_constraint: string;
+  reward_hacking_safe: boolean;
+  stages: StageContribution[];
+  calibration_summary: {
+    mean_brier: number;
+    mean_log_loss: number;
+    mean_xg_mae: number;
+    outcome_accuracy: number;
+    conformal_coverage: number;
+  };
+  details: {
+    per_match: { match_id: string; composite: number; per_verifier: Record<string, number> }[];
+    reward_hacking_test: Record<string, unknown>;
+  };
+}
+
+export interface TrajectoryFailure {
+  category: string;
+  severity: string;
+  evidence: string;
+  description: string;
+}
+
+export interface TrajectoryReport {
+  match_id: string;
+  n_tool_calls: number;
+  n_failed_calls: number;
+  elapsed_ms: number;
+  trajectory_quality: number;
+  failure_counts: Record<string, number>;
+  failures: TrajectoryFailure[];
+  details: Record<string, unknown>;
+}
+
 // ---- chat / conversational layer ----
 
 export interface ChatAction {

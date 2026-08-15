@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/bracket", label: "WWC Bracket" },
   { href: "/predict", label: "Ask the Agent" },
   { href: "/parlay", label: "Parlay Builder" },
+  { href: "/evaluation", label: "Evaluation" },
 ];
 
 export function Nav() {

@@ -156,7 +156,9 @@ def root() -> dict[str, Any]:
         "endpoints": ["/health", "/predict", "/approve", "/predict/stream",
                       "/reflect", "/calibration", "/parlay/price", "/chat",
                       "/bracket", "/leagues",
-                      "/leagues/{id}", "/leagues/{id}/predict"],
+                      "/leagues/{id}", "/leagues/{id}/predict",
+                      "/evaluation/evaluate", "/evaluation/attribution",
+                      "/evaluation/trajectory"],
         "interactive_api_docs": "/docs",
     }
 
@@ -634,3 +636,97 @@ def chat(request: Request, body: ChatIn) -> dict[str, Any]:
     intent = _parse_chat_intent(body.message)
     response = _chat_respond(intent)
     return response
+
+
+# ---- evaluation harness (Westworld-style mixed verifiers) ----
+
+
+class EvalMatchIn(BaseModel):
+    match_id: str
+    prediction: dict[str, Any]
+    actual_outcome: str = Field(..., pattern="^(home|draw|away)$")
+    actual_home_goals: int = Field(..., ge=0)
+    actual_away_goals: int = Field(..., ge=0)
+
+
+class EvalBatchIn(BaseModel):
+    matches: list[EvalMatchIn] = Field(..., min_length=1)
+
+
+@app.post("/evaluation/evaluate", dependencies=[Depends(require_api_key)])
+def evaluation_evaluate(body: EvalMatchIn) -> dict[str, Any]:
+    """Run mixed-verifier evaluation on a single prediction vs actual result.
+
+    Three verifier types (state-based, component-level, ground-truth matching)
+    produce a weighted composite score. Includes reward-hacking floor test."""
+    from src.eval.harness import (
+        ActualResult,
+        evaluation_to_dict,
+        evaluate as run_eval,
+        reward_hacking_floor_test,
+    )
+
+    actual = ActualResult(
+        outcome=body.actual_outcome,
+        home_goals=body.actual_home_goals,
+        away_goals=body.actual_away_goals,
+    )
+    result = run_eval(body.match_id, body.prediction, actual)
+    floor = reward_hacking_floor_test(actual)
+    result.reward_hacking_safe = floor["harness_safe"]
+    out = evaluation_to_dict(result)
+    out["reward_hacking_test"] = floor
+    return out
+
+
+@app.post("/evaluation/attribution", dependencies=[Depends(require_api_key)])
+def evaluation_attribution(body: EvalBatchIn) -> dict[str, Any]:
+    """Stage-wise attribution: which pipeline stage drives accuracy?
+
+    Evaluates a batch of predictions, decomposes quality by verifier type,
+    and identifies the binding constraint (highest-correlation stage)."""
+    from src.eval.attribution import attribution_to_dict, run_attribution
+    from src.eval.harness import ActualResult
+
+    preds = [m.prediction for m in body.matches]
+    actuals = [
+        ActualResult(
+            outcome=m.actual_outcome,
+            home_goals=m.actual_home_goals,
+            away_goals=m.actual_away_goals,
+        )
+        for m in body.matches
+    ]
+    ids = [m.match_id for m in body.matches]
+    report = run_attribution(preds, actuals, ids)
+    return attribution_to_dict(report)
+
+
+@app.post("/evaluation/trajectory", dependencies=[Depends(require_api_key)])
+def evaluation_trajectory(request: Request) -> dict[str, Any]:
+    """Analyze the most recent prediction run's trajectory for failure patterns.
+
+    Classifies failures into the Diligence Bench taxonomy: instruction loss,
+    risk abandonment, false verification, silent scope drop, detrimental looping."""
+    from src.eval.trajectory import analyze_trajectory, trajectory_to_dict
+
+    # pull the latest trace from the trace log
+    trace_path = Path(os.environ.get("TRACE_PATH", "data/traces/runs.jsonl"))
+    if not trace_path.exists():
+        raise HTTPException(status_code=404, detail="no traces found")
+
+    lines = trace_path.read_text().splitlines()
+    if not lines:
+        raise HTTPException(status_code=404, detail="no traces found")
+
+    latest = json.loads(lines[-1])
+    report = analyze_trajectory(
+        match_id=latest.get("match_id", "unknown"),
+        request={"home_team": "", "away_team": ""},
+        prediction=None,
+        answer="",
+        degraded=latest.get("degraded", []),
+        ledger=latest.get("tool_calls", []),
+        elapsed_ms=latest.get("elapsed_ms", 0.0),
+    )
+    return trajectory_to_dict(report)
