@@ -1,5 +1,7 @@
 # Agentic Soccer Match Prediction over MCP
 
+**[Live Demo](https://agentic-soccer-match-prediction-mcp.vercel.app)**
+
 A two-phase, portfolio-grade system that predicts soccer tournament matches at five layers — outcome, exact score, event sequence, player props, market value — and serves those predictions through a LangGraph agent orchestrating three MCP servers, with human-in-the-loop approval before any staking suggestion, coverage-guaranteed uncertainty, fault-injected agent evals, and prompt-injection hardening.
 
 ### Built With
@@ -403,6 +405,61 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 | Zheng et al., *MT-Bench / LLM-as-a-judge* (NeurIPS 2023) | `evals/judge.py` — binary rubric, stored reasoning, human spot-checks |
 | Schick et al., *Toolformer* (NeurIPS 2023) | motivation for the tool-augmented serving layer |
 | Yehudai et al., *Survey on Evaluation of LLM-based Agents* (2025) | cost/robustness/safety axes in the eval design |
+
+## 🔬 Mixed-Verifier Evaluation Harness
+
+A three-module evaluation framework inspired by [Halluminate.ai](https://halluminate.ai)'s research on RL environments for financial knowledge work. The harness applies Westworld-style verification, DealTrace-style pipeline decomposition, and Diligence Bench failure taxonomy to the soccer prediction system.
+
+### Mixed Verifiers (`src/eval/harness.py`)
+
+Three verifier types run independently on every prediction and combine into a weighted 0-1 composite score:
+
+| Verifier | Weight | What it checks |
+|---|---|---|
+| **State-based** | 40% | Predicted outcome vs actual result, conformal set coverage, calibrated confidence on the true outcome. Near-uniform distributions (max prob ≤ 0.34) receive no correctness credit. |
+| **Component-level** | 35% | Derived markets checked independently: over/under 2.5, BTTS, actual score in top-5 scorelines, xG direction vs goal difference. Score = fraction of passing checks. |
+| **Ground-truth matching** | 25% | Brier score, log-loss, xG mean absolute error. Score = max(0, 1 − Brier), so a perfect forecast scores 1.0 and Brier ≥ 1 scores 0. |
+
+**Reward-hacking floor test:** empty submissions (zero probabilities) and uniform submissions (1/3 each, league-average xG) are both verified to score below 0.30 for every possible match outcome, ensuring the scoring function cannot be gamed by content-free strategies.
+
+### Trajectory Failure Taxonomy (`src/eval/trajectory.py`)
+
+Classifies agent trajectory failures into five categories from the Diligence Bench:
+
+| Category | Detection | Diligence Bench Reference |
+|---|---|---|
+| **Instruction loss** | Requested stakes not honored, knockout mode missing, team names absent from answer | 42.4% of capability failures |
+| **Risk abandonment** | Degraded flags not disclosed in the answer, wide conformal set with no uncertainty mention | 7-29% carry-through rate |
+| **False verification** | Tool calls marked `ok=True` but returning empty or null results | 15.4% of capability failures |
+| **Silent scope drop** | Missing required prediction keys, missing player props when data was provided | — |
+| **Detrimental looping** | 3+ consecutive identical tool calls (same server, tool, and args) | — |
+
+Each failure carries a severity (high: 0.20 penalty, medium: 0.10, low: 0.05). Trajectory quality = 1.0 − sum of penalties, clamped to [0, 1].
+
+### Stage-wise Attribution (`src/eval/attribution.py`)
+
+Evaluates a batch of predictions and decomposes quality by pipeline stage — analogous to DealTrace's regression finding that forecast quality (β=0.75) dominates extraction (β=0.28) as the binding constraint.
+
+For each verifier, the module computes mean score, standard deviation, and Pearson correlation with the composite score across the batch. The **binding constraint** is the stage with the highest correlation — improving it would most move the composite. The report also includes a calibration summary (mean Brier, log-loss, xG MAE, outcome accuracy, conformal coverage) and confirms reward-hacking safety across the batch.
+
+### Gateway Endpoints
+
+```
+POST /evaluation/evaluate      — single-match mixed-verifier evaluation
+POST /evaluation/attribution   — batch evaluation with stage-wise attribution
+POST /evaluation/trajectory    — analyze latest agent trace for failure patterns
+```
+
+### UI Dashboard
+
+The `/evaluation` page provides three interactive tabs:
+- **Mixed Verifiers** — run a demo evaluation, inspect per-verifier scores, and verify the reward-hacking floor
+- **Stage Attribution** — run a 5-match batch, see the binding constraint highlighted, drill into per-match breakdowns
+- **Trajectory Analysis** — analyze the latest agent run for failure patterns, with category counts and severity-tagged details
+
+### Test Coverage
+
+34 property tests (`tests/test_evaluation.py`) covering all three modules. Full suite: **371 passed, 0 failures**.
 
 ## Contact
 
