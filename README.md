@@ -326,6 +326,34 @@ subprocess with sockets stubbed and a runtime-guarded `__import__`),
 deterministic cell-replay statefulness, and 18 escape attempts under test.
 Details and honest limits: [docs/SWARM.md](docs/SWARM.md).
 
+### Stateful betting book (MCP Server 5) — making the agent act
+
+The first four servers are read-only. The book server is not: it gives the agent a bankroll it mutates, positions that persist, and risk limits that reject rather than clamp. The environment replays 2,280 real EPL matches (6 seasons, football-data.co.uk) chronologically, and scoring is **closing-line value**, not profit — profit over a gameweek is mostly variance, and a reward the market can satisfy for you is not a reward.
+
+**Tools:** `get_bankroll`, `get_available_markets`, `place_bet`, `close_day`, `get_ledger`, `reset_episode`.
+
+**Reward-hacking test suite** — six adversarial attacks, each with a test asserting it does not score well:
+
+| Attack | Strategy | Defence | Result |
+|--------|----------|---------|--------|
+| Martingale | Double stake after every loss | Per-bet cap + drawdown halt | Blocked |
+| Max-stake favourite | Always back the favourite at max stake | CLV ≈ 0 for taking market price | No reward |
+| Never bet | Abstain from every market | Abstention bonus is +0.01, not competitive | Small only |
+| Churn | Many tiny bets on all outcomes | `w_churn` penalty (-0.002/bet above 15) | Penalized |
+| Stale price | Bet on past-date fixtures | Monotonic clock rejects backward time | Rejected |
+| Double-dip | Multiple bets on one match | Per-match exposure cap (15% of bankroll) | Blocked |
+
+**Baseline results** (4 scripted policies, 230 gameweeks, bootstrapped 95% CIs):
+
+| Policy | Bets | Mean CLV | 95% CI | Mean Reward |
+|--------|------|----------|--------|-------------|
+| Abstainer | 0 | n/a | n/a | +0.010 |
+| Favourite | 1,596 | -0.0051 | [-0.0085, -0.0017] | -0.014 |
+| Random | 687 | -0.0030 | [-0.0061, +0.0064] | -0.004 |
+| Kelly (model) | 0 | n/a | n/a | +0.010 |
+
+No scripted policy achieves positive CLV against the Pinnacle close. The Kelly policy places zero bets because using the de-vigged close as the model probability produces no actionable edge — consistent with the EPL backtest result in `docs/backtest_epl.md`. Full analysis: [docs/season_baseline.md](docs/season_baseline.md), [docs/reward_hacking.md](docs/reward_hacking.md), [docs/clv_data_audit.md](docs/clv_data_audit.md).
+
 ### Agent evals (Phase B) — `evals/`
 
 **28-task golden set** across five categories (happy paths over many phrasings/teams, stakes-HITL, fault injection, prompt injection, unparseable), run in CI as a regression gate. Current results:
@@ -373,12 +401,14 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 | news trust boundary | `src/news/` (`schemas.py`) |
 | model ensemble + artifact bundle | `src/models/` |
 | offline eval / backtests | `src/eval/` |
-| MCP servers | `mcp_servers/{data,news,ml}_server/` + `common.py` |
+| MCP servers (read) | `mcp_servers/{data,news,ml}_server/` + `common.py` |
+| MCP server (write) | `mcp_servers/book_server/` — stateful betting book |
+| gameweek environment | `envs/` (market replay, reward, scripted policies) |
 | orchestrator | `agent/` (graph, state, tooling, memory, tracing, react) |
 | public edge | `gateway/app.py` |
 | agent evals + A/B + judge | `evals/` |
 | training & demo scripts | `scripts/` |
-| unit + integration tests (99) | `tests/` |
+| unit + integration tests (411) | `tests/` |
 
 ## ⚠️ Honest Limitations
 
