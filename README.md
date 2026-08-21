@@ -354,6 +354,32 @@ The first four servers are read-only. The book server is not: it gives the agent
 
 No scripted policy achieves positive CLV against the Pinnacle close. The Kelly policy places zero bets because using the de-vigged close as the model probability produces no actionable edge — consistent with the EPL backtest result in `docs/backtest_epl.md`. Full analysis: [docs/season_baseline.md](docs/season_baseline.md), [docs/reward_hacking.md](docs/reward_hacking.md), [docs/clv_data_audit.md](docs/clv_data_audit.md).
 
+### GRPO training loop — `training/`
+
+Group Relative Policy Optimization (Shao et al., 2024) applied to the staking problem. The book server environment already has everything RL requires: a reset-and-replay loop, a scalar CLV-primary reward, and scripted baselines. GRPO replaces the learned value baseline in PPO with a group-relative baseline — for each gameweek, sample K action sequences, score each through the environment, and normalize advantages within the group. This eliminates the value network entirely.
+
+**Architecture:** 2-hidden-layer MLP (8 → 64 → 32 → 4) implemented from scratch in numpy, with analytical backpropagation and Adam optimizer. No PyTorch dependency. The policy maps per-fixture features (odds, implied probabilities, bankroll state, drawdown) to a categorical distribution over {skip, bet_H, bet_D, bet_A}.
+
+**Walk-forward evaluation:** train on seasons 1–4, test on seasons 5–6. The learned policy is compared against fractional Kelly, favourite, random, and abstainer baselines on the same held-out gameweeks. Code: [training/gym_wrapper.py](training/gym_wrapper.py), [training/policy.py](training/policy.py), [training/grpo.py](training/grpo.py), [training/evaluate.py](training/evaluate.py).
+
+### Sim-to-real transfer — `evals/sim_to_real.py`
+
+Measures whether performance transfers from historical (sim) data to held-out (real) data — directly analogous to Halluminate's July 2026 sim-to-real study, which found transfer collapsed from 25% to 5% when moving from Westworld to a real website.
+
+Two levels of measurement:
+- **Market-level:** do pre-close odds remain well-calibrated across seasons? ECE, Brier, and reliability curves on training vs held-out data.
+- **Environment-level:** does a staking policy trained on historical gameweeks perform comparably on unseen gameweeks? Measured by the transfer ratio (performance_real / performance_sim).
+
+The honest expectation: transfer will degrade, and reporting the gap is the finding.
+
+### Computer-use odds validator — `agents/odds_validator.py`
+
+A three-stage pipeline demonstrating the Halluminate-style computer-use agent pattern: capture a web page, extract structured data from the capture using a vision-language model, and validate the extracted data against a trusted reference source.
+
+**Pipeline:** `PageCapture` (protocol) → `OddsExtractor` (VLM or structured parsing) → `OddsValidator` (drift, anomaly, staleness, missing-match detection). The validator applies the same three-verifier pattern: state-based (did the page load?), component-level (are individual odds valid?), ground-truth matching (do extracted odds match the reference?).
+
+Includes a `MockCapture` for testing with injectable drift, anomalies, and dropped fixtures, plus an `OddsValidationAgent` orchestrator. The architecture is production-ready — the VLM call is the only placeholder.
+
 ### Agent evals (Phase B) — `evals/`
 
 **28-task golden set** across five categories (happy paths over many phrasings/teams, stakes-HITL, fault injection, prompt injection, unparseable), run in CI as a regression gate. Current results:
@@ -407,8 +433,11 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 | orchestrator | `agent/` (graph, state, tooling, memory, tracing, react) |
 | public edge | `gateway/app.py` |
 | agent evals + A/B + judge | `evals/` |
+| sim-to-real transfer measurement | `evals/sim_to_real.py` |
+| GRPO staking policy | `training/` (gym wrapper, MLP policy, trainer, walk-forward eval) |
+| computer-use odds validator | `agents/odds_validator.py` |
 | training & demo scripts | `scripts/` |
-| unit + integration tests (411) | `tests/` |
+| unit + integration tests (457) | `tests/` |
 
 ## ⚠️ Honest Limitations
 
@@ -435,6 +464,8 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 | Zheng et al., *MT-Bench / LLM-as-a-judge* (NeurIPS 2023) | `evals/judge.py` — binary rubric, stored reasoning, human spot-checks |
 | Schick et al., *Toolformer* (NeurIPS 2023) | motivation for the tool-augmented serving layer |
 | Yehudai et al., *Survey on Evaluation of LLM-based Agents* (2025) | cost/robustness/safety axes in the eval design |
+| Shao et al., *DeepSeekMath: GRPO* (2024) | `training/grpo.py` — group-relative policy optimization, no value network |
+| Halluminate.ai, *Sim-to-Real Transfer Study* (Jul 2026) | `evals/sim_to_real.py` — market-level + environment-level transfer measurement |
 
 ## 🔬 Mixed-Verifier Evaluation Harness
 
