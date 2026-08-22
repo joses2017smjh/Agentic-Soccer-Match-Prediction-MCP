@@ -360,7 +360,11 @@ Group Relative Policy Optimization (Shao et al., 2024) applied to the staking pr
 
 **Architecture:** 2-hidden-layer MLP (8 → 64 → 32 → 4) implemented from scratch in numpy, with analytical backpropagation and Adam optimizer. No PyTorch dependency. The policy maps per-fixture features (odds, implied probabilities, bankroll state, drawdown) to a categorical distribution over {skip, bet_H, bet_D, bet_A}.
 
+![GRPO training reward trajectory](docs/img/grpo_training_curve.png)
+
 **Walk-forward evaluation** (train on 20 gameweeks from seasons 1–4, 5 epochs, K=8; evaluate on first 10 gameweeks of held-out seasons 5–6):
+
+![Walk-forward evaluation: CLV, reward, bet volume](docs/img/walkforward_eval.png)
 
 | Policy | Mean Reward | Total Bets | Mean CLV |
 |--------|-------------|------------|----------|
@@ -382,6 +386,8 @@ Two levels of measurement:
 - **Environment-level:** does a staking policy trained on historical gameweeks perform comparably on unseen gameweeks? Measured by the transfer ratio (performance_real / performance_sim).
 
 The honest expectation: transfer will degrade, and reporting the gap is the finding.
+
+![Sim-to-real transfer: calibration metrics and reliability diagrams](docs/img/sim_to_real_transfer.png)
 
 **Market-level results** (sim = seasons 1–4, 1,520 matches; real = seasons 5–6, 760 matches):
 
@@ -410,6 +416,8 @@ A three-stage pipeline demonstrating the Halluminate-style computer-use agent pa
 **Pipeline:** `PageCapture` (protocol) → `OddsExtractor` (VLM or structured parsing) → `OddsValidator` (drift, anomaly, staleness, missing-match detection). The validator applies the same three-verifier pattern: state-based (did the page load?), component-level (are individual odds valid?), ground-truth matching (do extracted odds match the reference?).
 
 Includes a `MockCapture` for testing with injectable drift, anomalies, and dropped fixtures, plus an `OddsValidationAgent` orchestrator. The architecture is production-ready — the VLM call is the only placeholder.
+
+![Odds validator: detection results and pipeline architecture](docs/img/odds_validator_pipeline.png)
 
 **Validation results** (10 EPL fixtures from 2024-25, three test scenarios):
 
