@@ -69,6 +69,8 @@ Betting markets are a strong but beatable-in-places probability oracle. The inte
 
 ## 🧠 Architecture
 
+![System architecture](docs/img/architecture.png)
+
 ```mermaid
 flowchart TD
     U[User / REST client] --> GW["FastAPI Gateway<br/>auth · validation · NDJSON streaming"]
@@ -332,6 +334,8 @@ The first four servers are read-only. The book server is not: it gives the agent
 
 **Tools:** `get_bankroll`, `get_available_markets`, `place_bet`, `close_day`, `get_ledger`, `reset_episode`.
 
+![Reward-hacking defenses and baseline policies](docs/img/reward_hacking_baselines.png)
+
 **Reward-hacking test suite** — six adversarial attacks, each with a test asserting it does not score well:
 
 | Attack | Strategy | Defence | Result |
@@ -398,6 +402,8 @@ The honest expectation: transfer will degrade, and reporting the gap is the find
 | Log-loss | 0.9702 | 0.9394 | -0.0308 |
 
 Market calibration transfers well: ECE drift is negligible (+0.0004), and Brier/log-loss actually improve on held-out data. Pre-close odds from Pinnacle remain well-calibrated across season boundaries — the market itself is not the transfer bottleneck.
+
+![Environment transfer ratios](docs/img/environment_transfer.png)
 
 **Environment-level results** (scripted baselines, 10 gameweeks each split):
 
@@ -468,6 +474,8 @@ Failures (when they occur) are tagged with a MAST-inspired taxonomy — `spec_mi
 
 Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only, optional gateway API key, audit trail of every tool call.
 
+![Test suite breakdown and feature status](docs/img/test_suite_features.png)
+
 ## 🗂️ Code Organization
 
 | concern | where |
@@ -517,6 +525,8 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 | Halluminate.ai, *Sim-to-Real Transfer Study* (Jul 2026) | `evals/sim_to_real.py` — market-level + environment-level transfer measurement |
 
 ## 🔬 Mixed-Verifier Evaluation Harness
+
+![Mixed-verifier evaluation harness architecture](docs/img/eval_harness.png)
 
 A three-module evaluation framework inspired by [Halluminate.ai](https://halluminate.ai)'s research on RL environments for financial knowledge work. The harness applies Westworld-style verification, DealTrace-style pipeline decomposition, and Diligence Bench failure taxonomy to the soccer prediction system.
 
