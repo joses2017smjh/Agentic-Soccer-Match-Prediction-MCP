@@ -1,0 +1,67 @@
+[
+  {
+    "eta": 0.3,
+    "sim_reward": 0.05132,
+    "real_reward": -0.03434,
+    "sim_clv": 0.05856,
+    "real_clv": -0.00754,
+    "sim_bets": 15,
+    "real_bets": 29,
+    "transfer_ratio": -0.6691,
+    "fav_sim_clv": -0.0522,
+    "fav_real_clv": -0.01456,
+    "train_final_reward": 0.005522
+  },
+  {
+    "eta": 0.5,
+    "sim_reward": 0.07018,
+    "real_reward": -0.05234,
+    "sim_clv": 0.07746,
+    "real_clv": -0.03288,
+    "sim_bets": 15,
+    "real_bets": 33,
+    "transfer_ratio": -0.7458,
+    "fav_sim_clv": -0.0542,
+    "fav_real_clv": -0.01456,
+    "train_final_reward": 0.012265
+  },
+  {
+    "eta": 0.7,
+    "sim_reward": 0.08552,
+    "real_reward": -0.01924,
+    "sim_clv": 0.0928,
+    "real_clv": 0.00324,
+    "sim_bets": 15,
+    "real_bets": 30,
+    "transfer_ratio": -0.225,
+    "fav_sim_clv": -0.055,
+    "fav_real_clv": -0.01456,
+    "train_final_reward": 0.028912
+  },
+  {
+    "eta": 0.85,
+    "sim_reward": 0.04924,
+    "real_reward": 0.00994,
+    "sim_clv": 0.05522,
+    "real_clv": 0.03416,
+    "sim_bets": 15,
+    "real_bets": 29,
+    "transfer_ratio": 0.2019,
+    "fav_sim_clv": -0.05584,
+    "fav_real_clv": -0.01456,
+    "train_final_reward": 0.075395
+  },
+  {
+    "eta": 0.95,
+    "sim_reward": 0.09076,
+    "real_reward": -0.01924,
+    "sim_clv": 0.09678,
+    "real_clv": 0.00324,
+    "sim_bets": 15,
+    "real_bets": 30,
+    "transfer_ratio": -0.212,
+    "fav_sim_clv": -0.05652,
+    "fav_real_clv": -0.01456,
+    "train_final_reward": 0.040643
+  }
+]

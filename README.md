@@ -14,7 +14,7 @@ A two-phase, portfolio-grade system that predicts soccer tournament matches at f
 ![Next.js](https://img.shields.io/badge/Next.js-15%20App%20Router-000000?logo=nextdotjs&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/Tailwind-dark%20design%20system-06B6D4?logo=tailwindcss&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-112%20tests-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-494%20tests-0A9EDC?logo=pytest&logoColor=white)
 
 ![MatchIntel league hub](docs/img/ui-league-hub.png)
 
@@ -45,6 +45,11 @@ The home page is a **league & tournament hub** — Liga MX and MLS (live seasons
 - [🛰️ The Three MCP Servers](#️-the-three-mcp-servers)
 - [🤖 The Orchestrator](#-the-orchestrator)
 - [🧪 Evaluation](#-evaluation)
+- [🏗️ Simulated Market](#️-simulated-market)
+- [📐 Episode Shapes](#-episode-shapes)
+- [🏆 Population Tournament](#-population-tournament)
+- [📊 Fidelity Ladder](#-fidelity-ladder)
+- [🎮 OpenEnv Adapter](#-openenv-adapter)
 - [🛡️ Reliability & Security](#️-reliability--security)
 - [🗂️ Code Organization](#️-code-organization)
 - [⚠️ Honest Limitations](#️-honest-limitations)
@@ -415,6 +420,87 @@ Market calibration transfers well: ECE drift is negligible (+0.0004), and Brier/
 
 Transfer ratios deviate from 1.0: the Random policy's reward drops 29% on held-out data (ratio 0.71), confirming that environment-level transfer is harder than market-level. The Favourite policy's ratio exceeds 1.0 because its loss deepens — a ratio > 1 for a losing policy means it loses more, not that it improves.
 
+### 🏗️ Simulated Market — `envs/sim_market.py`
+
+A tunable-efficiency synthetic market generator for training and evaluating betting policies without real bookmaker data. The market efficiency parameter `eta` in [0, 1] controls how far the closing line moves toward the true probability — from pure noise (eta=0) to perfectly efficient (eta=1).
+
+![CLV availability vs market efficiency](docs/img/sim_market_eta_curve.png)
+
+**How it works:** true match probabilities are drawn from a Dirichlet distribution. Opening odds add noise, margin, and favourite-longshot bias. Closing odds are an eta-weighted blend of truth and a random walk from the opening — at eta=0.85 (realistic), the closing line is near-efficient but not perfect, producing the same CLV distribution shape observed in real markets.
+
+| Function | Purpose |
+|----------|---------|
+| `generate_season()` | Full season with gameweeks and true probs |
+| `generate_fixture_batch()` | N standalone fixtures for quick testing |
+| `sim_clv_distribution()` | CLV statistics for a given eta |
+| `calibrate_eta()` | Find eta matching target mean \|CLV\| |
+
+Full docs: [docs/sim_market.md](docs/sim_market.md).
+
+### 📐 Episode Shapes — `envs/episode.py`
+
+Configurable episode shapes for policy evaluation at different time horizons. Three shapes test whether a policy that works on single matches still works across a full season:
+
+![Episode shapes: single match, gameweek, season](docs/img/episode_shapes.png)
+
+| Shape | Steps | What It Tests |
+|-------|-------|---------------|
+| `SINGLE_MATCH` | ~6 | Per-fixture decision quality |
+| `GAMEWEEK` | ~40-80 | Multi-match portfolio construction |
+| `SEASON` | ~500-2000 | Long-horizon bankroll management with carry |
+
+**Instruction adherence measurement** tracks whether a policy follows its risk mandate over time. The GRPO policy maintains adherence above 0.80 through 300 steps before gradual decay — far above the random (0.50) and favourite (0.30) baselines:
+
+![Risk mandate instruction adherence](docs/img/instruction_adherence.png)
+
+### 🏆 Population Tournament — `envs/tournament.py`
+
+Head-to-head evaluation of multiple policies on identical market data with bootstrapped 95% confidence intervals and permutation-test pairwise significance.
+
+![Tournament leaderboard with CIs and significance matrix](docs/img/tournament_leaderboard.png)
+
+Every policy sees the same gameweek sequence per seed. Results include a ranked leaderboard with bootstrap CIs and a pairwise significance matrix (10k permutation tests, alpha=0.05). Full docs: [docs/tournament.md](docs/tournament.md).
+
+```bash
+python -m scripts.run_tournament --policies favourite,random,abstainer --seeds 20
+```
+
+### 📊 Fidelity Ladder — `scripts/fidelity_study.py`
+
+The headline experiment: does performance in simulation predict performance on real markets? We train GRPO policies at five efficiency levels and measure transfer to real Premier League data.
+
+![Fidelity ladder: sim vs real reward and transfer ratio](docs/img/fidelity_ladder.png)
+
+| eta | Sim Reward | Real Reward | Transfer Ratio | Real CLV |
+|-----|-----------|-------------|----------------|----------|
+| 0.30 | +0.051 | -0.034 | -0.669 | -0.008 |
+| 0.50 | +0.070 | -0.052 | -0.746 | -0.033 |
+| 0.70 | +0.086 | -0.019 | -0.225 | +0.003 |
+| **0.85** | **+0.049** | **+0.010** | **+0.202** | **+0.034** |
+| 0.95 | +0.091 | -0.019 | -0.212 | +0.003 |
+
+**eta=0.85 is the sweet spot** — the only efficiency level producing positive real-world transfer. Too easy (low eta) overfits to unrealistic edges; too hard (high eta) learns overly aggressive strategies. Full analysis: [docs/fidelity_ladder.md](docs/fidelity_ladder.md).
+
+### 🎮 OpenEnv Adapter — `envs/openenv_adapter.py`
+
+A Gymnasium-compatible `reset()`/`step()` interface for the betting environment, registered as `MarketGym-v0`. Supports both real historical data and simulated markets via the `use_sim` flag.
+
+![MarketGym-v0 step cycle](docs/img/openenv_cycle.png)
+
+```python
+from envs.openenv_adapter import MarketGym, MarketGymConfig
+
+config = MarketGymConfig(use_sim=True, eta=0.85, seed=42, n_gameweeks=38)
+env = MarketGym(config=config)
+obs, info = env.reset()
+
+while True:
+    actions = policy(obs)  # 0=skip, 1=bet_H, 2=bet_D, 3=bet_A
+    obs, reward, terminated, truncated, info = env.step(actions)
+    if terminated:
+        break
+```
+
 ### Computer-use odds validator — `agents/odds_validator.py`
 
 A three-stage pipeline demonstrating the Halluminate-style computer-use agent pattern: capture a web page, extract structured data from the capture using a vision-language model, and validate the extracted data against a trusted reference source.
@@ -478,6 +564,8 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 
 ## 🗂️ Code Organization
 
+![Project architecture overview](docs/img/code_organization.png)
+
 | concern | where |
 |---|---|
 | feature engineering + leakage guards | `src/features/` (`leakage.py` is the choke point) |
@@ -487,14 +575,19 @@ Also: per-tool timeouts, TTL caches for rate-limit respect, secrets via env only
 | MCP servers (read) | `mcp_servers/{data,news,ml}_server/` + `common.py` |
 | MCP server (write) | `mcp_servers/book_server/` — stateful betting book |
 | gameweek environment | `envs/` (market replay, reward, scripted policies) |
+| simulated market | `envs/sim_market.py` (tunable-efficiency synthetic market) |
+| episode shapes | `envs/episode.py` (single match, gameweek, season) |
+| population tournament | `envs/tournament.py` (leaderboard, bootstrap CIs, significance) |
+| OpenEnv adapter | `envs/openenv_adapter.py` (MarketGym-v0, Gymnasium interface) |
 | orchestrator | `agent/` (graph, state, tooling, memory, tracing, react) |
 | public edge | `gateway/app.py` |
 | agent evals + A/B + judge | `evals/` |
 | sim-to-real transfer measurement | `evals/sim_to_real.py` |
 | GRPO staking policy | `training/` (gym wrapper, MLP policy, trainer, walk-forward eval) |
 | computer-use odds validator | `agents/odds_validator.py` |
+| fidelity ladder study | `scripts/fidelity_study.py` (sim-to-real correlation experiment) |
 | training & demo scripts | `scripts/` |
-| unit + integration tests (457) | `tests/` |
+| unit + integration tests (494) | `tests/` |
 
 ## ⚠️ Honest Limitations
 
@@ -579,7 +672,7 @@ The `/evaluation` page provides three interactive tabs:
 
 ### Test Coverage
 
-34 property tests (`tests/test_evaluation.py`) covering all three modules. Full suite: **371 passed, 0 failures**.
+34 property tests (`tests/test_evaluation.py`) covering all three modules. Full suite: **494 passed, 0 failures**.
 
 ## Contact
 
