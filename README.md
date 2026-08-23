@@ -80,7 +80,7 @@ Full reports: [EPL backtest](docs/backtest_epl.md) | [WC26 report](docs/wc26_rep
 
 Group Relative Policy Optimization (Shao et al., 2024) applied to staking. A 2,788-parameter MLP implemented from scratch in numpy (no PyTorch) maps per-fixture features to {skip, bet_H, bet_D, bet_A}. GRPO replaces the value network with a group-relative baseline.
 
-![GRPO training reward trajectory](docs/img/grpo_training_curve.png)
+![GRPO training demo](docs/img/demo_grpo_training.gif)
 
 ![Walk-forward evaluation](docs/img/walkforward_eval.png)
 
@@ -97,13 +97,13 @@ The GRPO policy achieves the highest CLV of any policy that places bets, outperf
 
 A tunable-efficiency synthetic market generator. The `eta` parameter controls how far the closing line moves toward truth -- from pure noise (0.0) to perfectly efficient (1.0).
 
-![CLV availability vs market efficiency](docs/img/sim_market_eta_curve.png)
+![Eta sweep demo](docs/img/demo_eta_sweep.gif)
 
 ### Fidelity Ladder -- does sim performance predict real performance?
 
 Train GRPO at five efficiency levels, evaluate on real Premier League data.
 
-![Fidelity ladder](docs/img/fidelity_ladder.png)
+![Fidelity ladder demo](docs/img/demo_fidelity.gif)
 
 | eta | Sim Reward | Real Reward | Transfer Ratio | Real CLV |
 |-----|-----------|-------------|----------------|----------|
@@ -117,6 +117,12 @@ Train GRPO at five efficiency levels, evaluate on real Premier League data.
 
 Full docs: [Sim market](docs/sim_market.md) | [Fidelity ladder](docs/fidelity_ladder.md) | [GRPO guide](docs/grpo_run.md)
 
+### Season Simulation
+
+Full-season bankroll trajectory with per-bet win/loss markers, drawdown tracking, and rolling average.
+
+![Season simulation demo](docs/img/demo_season_sim.gif)
+
 ### Episode Shapes and Instruction Adherence
 
 Three episode shapes test whether a policy that works per-match still works across a full season.
@@ -129,9 +135,9 @@ The GRPO policy maintains risk mandate adherence above 0.80 through 300 steps --
 
 ### Population Tournament
 
-Head-to-head policy evaluation with bootstrapped 95% CIs and permutation-test pairwise significance.
+Head-to-head policy evaluation with bootstrapped 95% CIs and permutation-test pairwise significance. Policies compete on identical seeds; the leaderboard updates live.
 
-![Tournament leaderboard](docs/img/tournament_leaderboard.png)
+![Tournament demo](docs/img/demo_tournament.gif)
 
 ### OpenEnv Adapter
 
