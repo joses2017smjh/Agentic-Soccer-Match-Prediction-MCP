@@ -17,17 +17,47 @@ Calibrated match predictions at five layers -- outcome, exact score, event seque
 
 ## The Product
 
-![MatchIntel league hub](docs/img/ui-league-hub.png)
+### League Hub
 
-Liga MX, MLS, top-5 European leagues, international tournaments -- live standings, in-league Elo, matchup projections, and a bracket builder. Click any league to drill in; click any match for the full prediction breakdown.
+![League hub demo](docs/img/demo_league_hub.gif)
 
-![League detail](docs/img/ui-league-detail.png)
+Liga MX, MLS, top-5 European leagues, international tournaments -- live standings, opponent-adjusted Elo, and a bracket builder.
 
-![Bracket](docs/img/ui-bracket.png)
+### League Detail
 
-The agent console surfaces every prediction with conformal uncertainty bands, the evidence trail, and HITL approval before any staking suggestion reaches the user.
+![League detail demo](docs/img/demo_league_detail.gif)
 
-![Agent console](docs/img/ui-dashboard.png)
+Full standings with Elo ratings, latest results, and a matchup projector. Click any league from the hub to drill in.
+
+### Matchup Projection
+
+![Matchup projection demo](docs/img/demo_matchup.gif)
+
+Pick two teams, get the full Dixon-Coles breakdown: 1X2 probabilities, xG, advance chance, likely scorelines, and a projected scenario with named players from StatsBomb data.
+
+### WWC Bracket
+
+![Bracket demo](docs/img/demo_bracket.gif)
+
+Tournament bracket seeded by opponent-adjusted Elo. Each tie shows advance probability; scroll to the seeded field table.
+
+### Agent Console
+
+![Agent console demo](docs/img/demo_agent.gif)
+
+Type a natural-language query, the MCP agent runs 11 tool calls across 3 servers, and returns: outcome probabilities, Dixon-Coles score grid, conformal uncertainty set (90% coverage), headline scenario with named scorers, and the full evidence trail with per-call latency.
+
+### Evaluation Harness
+
+![Evaluation harness demo](docs/img/demo_evaluation.gif)
+
+Mixed-verifier evaluation with composite scoring, reward-hacking floor test, stage-wise attribution, and trajectory failure taxonomy -- all runnable from the UI.
+
+### Parlay Builder
+
+![Parlay builder demo](docs/img/demo_parlay.gif)
+
+Correlated-parlay pricing from the Dixon-Coles grid. Same-match legs are priced jointly; the correlation factor shows how much independent multiplication over- or under-prices your parlay.
 
 <details>
 <summary>Mobile views</summary>
