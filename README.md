@@ -47,6 +47,12 @@ Tournament bracket seeded by opponent-adjusted Elo. Each tie shows advance proba
 
 Type a natural-language query, the MCP agent runs 11 tool calls across 3 servers, and returns: outcome probabilities, Dixon-Coles score grid, conformal uncertainty set (90% coverage), headline scenario with named scorers, and the full evidence trail with per-call latency.
 
+### Agent Insight -- "is there value here?"
+
+![Agent insight interaction](docs/img/demo_insight.gif)
+
+The full evidence-grounded flow: user asks about a bet, agent checks fixtures, odds, availability, and sentiment across MCP servers, then returns probabilities, edge analysis (model fair vs market odds), conformal uncertainty, and a Kelly-sized recommendation -- pending human approval.
+
 ### Evaluation Harness
 
 ![Evaluation harness demo](docs/img/demo_evaluation.gif)
@@ -70,6 +76,18 @@ Correlated-parlay pricing from the Dixon-Coles grid. Same-match legs are priced 
 ---
 
 ## Architecture
+
+### One Grid, All Markets
+
+![Dixon-Coles grid morph](docs/img/demo_grid_morph.gif)
+
+Every market -- 1X2, over/under, BTTS, scorelines -- derives from one Dixon-Coles bivariate Poisson grid. Sweep the parameters and watch all markets update in lockstep. Nothing can contradict anything else.
+
+### Agent Trace
+
+![Agent trace](docs/img/demo_agent_trace.gif)
+
+A single prediction fires 11 tool calls across 3 MCP servers in 239 ms. The architecture lights up in sequence: sports-data for context/odds/stats, news-sentiment for availability/sentiment, ml-inference for the final prediction.
 
 ![System architecture](docs/img/architecture.png)
 
@@ -99,6 +117,12 @@ The closing line wins -- reported honestly. The model beats the naive baseline o
 | Frequency prior | 1.0552 | 0.6367 | 47.1% |
 
 Knockout accuracy: 70%. Conformal coverage: 0.951 vs 0.90 target.
+
+### Conformal Coverage -- distribution-free guarantee
+
+![Conformal coverage convergence](docs/img/demo_conformal.gif)
+
+Running coverage converges to the 90% target as matches stream in. Prediction sets widen to {Home, Draw, Away} on genuinely uncertain fixtures and collapse to singletons on lopsided ones -- uncertainty is surfaced, not overclaimed.
 
 Full reports: [EPL backtest](docs/backtest_epl.md) | [WC26 report](docs/wc26_report.md) | [Conformal study](docs/conformal_study.md)
 
@@ -193,9 +217,11 @@ Gymnasium-compatible `reset()`/`step()` interface registered as `MarketGym-v0`. 
 
 ### Reward-Hacking Defenses
 
-![Reward-hacking defenses](docs/img/reward_hacking_baselines.png)
+![Martingale blow-up](docs/img/demo_martingale.gif)
 
-Six adversarial attacks tested and blocked: martingale, max-stake favourite, never-bet, churn, stale price, double-dip. No scripted policy achieves positive CLV against the Pinnacle close.
+Six adversarial attacks tested and blocked. The martingale doubles its stake after every loss -- unchecked, it climbs dangerously; the per-bet cap and drawdown halt clip it before it detonates. No scripted policy achieves positive CLV against the Pinnacle close.
+
+![Reward-hacking defenses](docs/img/reward_hacking_baselines.png)
 
 ### Computer-Use Odds Validator
 
