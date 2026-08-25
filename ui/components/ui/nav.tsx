@@ -11,6 +11,7 @@ const LINKS = [
   { href: "/predict", label: "Ask the Agent" },
   { href: "/parlay", label: "Parlay Builder" },
   { href: "/evaluation", label: "Evaluation" },
+  { href: "/internals", label: "Internals" },
 ];
 
 export function Nav() {

@@ -88,3 +88,51 @@ def test_reflect_unknown_match_404(client: TestClient) -> None:
                     json={"match_id": "AAA-BBB-2020-01-01", "actual": "home"},
                     headers=KEY)
     assert r.status_code == 404
+
+
+# --------------------------------------------------------------------------
+# M2: /runs + /runs/{thread_id}/events endpoints
+# --------------------------------------------------------------------------
+
+def test_runs_list_returns_recent_runs(client: TestClient) -> None:
+    client.post("/predict", json={"text": "Predict Arsenal vs Chelsea"},
+                headers=KEY)
+    r = client.get("/runs", headers=KEY)
+    assert r.status_code == 200
+    runs = r.json()["runs"]
+    assert len(runs) >= 1
+    first = runs[0]
+    assert "thread_id" in first
+    assert "elapsed_ms" in first
+    assert "n_calls" in first
+
+
+def test_run_events_returns_event_stream(client: TestClient) -> None:
+    pred = client.post("/predict",
+                       json={"text": "Predict Arsenal vs Chelsea"},
+                       headers=KEY)
+    thread_id = pred.json()["thread_id"]
+    r = client.get(f"/runs/{thread_id}/events", headers=KEY)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["thread_id"] == thread_id
+    assert "events" in body
+    assert "trace" in body
+
+
+def test_run_events_unknown_404(client: TestClient) -> None:
+    r = client.get("/runs/nonexistent-thread-id/events", headers=KEY)
+    assert r.status_code == 404
+
+
+def test_stream_emits_ndjson_events(client: TestClient) -> None:
+    r = client.post("/predict/stream",
+                    json={"text": "Predict Arsenal vs Chelsea"},
+                    headers=KEY)
+    assert r.status_code == 200
+    lines = r.text.strip().split("\n")
+    assert len(lines) >= 2
+    import json
+    last = json.loads(lines[-1])
+    assert last["event"] == "result"
+    assert "events" in last

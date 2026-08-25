@@ -345,6 +345,31 @@ export interface TrajectoryReport {
   details: Record<string, unknown>;
 }
 
+// ---- agent internals / event bus ----
+
+export interface AgentEvent {
+  type: string;
+  thread_id: string;
+  at_utc: string;
+  data: Record<string, unknown>;
+}
+
+export interface RunSummary {
+  thread_id: string;
+  match_id: string;
+  mode: string;
+  outcome: string;
+  elapsed_ms: number;
+  n_calls: number;
+  at_utc: string;
+}
+
+export interface RunDetail {
+  thread_id: string;
+  trace: Record<string, unknown>;
+  events: AgentEvent[];
+}
+
 // ---- chat / conversational layer ----
 
 export interface ChatAction {
