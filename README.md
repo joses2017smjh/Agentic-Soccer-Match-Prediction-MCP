@@ -11,7 +11,7 @@ Calibrated match predictions at five layers -- outcome, exact score, event seque
 ![FastAPI](https://img.shields.io/badge/FastAPI-gateway-009688?logo=fastapi&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-15%20App%20Router-000000?logo=nextdotjs&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
-![pytest](https://img.shields.io/badge/pytest-494%20tests-0A9EDC?logo=pytest&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-505%20tests-0A9EDC?logo=pytest&logoColor=white)
 
 ---
 
@@ -103,11 +103,11 @@ A single prediction fires 11 tool calls across 3 MCP servers in 239 ms. The arch
 
 | Forecaster | Log Loss | Brier | RPS |
 |---|---|---|---|
-| **Closing line (Pinnacle)** | **0.9448** | **0.5597** | **0.1922** |
-| Model | 1.0383 | 0.5874 | 0.2035 |
+| **Closing line (Pinnacle)** | **0.9407** | **0.5564** | **0.1907** |
+| Model (market-anchored) | 1.0229 | 0.5866 | 0.2028 |
 | Naive baseline | 1.0652 | 0.6446 | 0.2337 |
 
-The closing line wins -- reported honestly. The model beats the naive baseline on every metric in every fold. Conformal coverage: 0.888 vs 0.90 target.
+The closing line wins -- reported honestly. The model uses the pre-close market as a base margin (B1), benchmarked against the actual closing line (B0). The model beats the naive baseline on every metric in every fold. Conformal coverage: 0.869 vs 0.90 target.
 
 ### World Cup 2026 -- 102 live tournament matches
 
@@ -300,7 +300,7 @@ python -m scripts.run_tournament --policies favourite,random,abstainer --seeds 2
 | Computer-use odds validator | `agents/` |
 | FastAPI gateway + Next.js 15 UI | `gateway/` + `ui/` |
 | CLI scripts (train, tournament, fidelity) | `scripts/` |
-| 494 tests, 0 failures | `tests/` |
+| 505 tests, 0 failures | `tests/` |
 
 <details>
 <summary>Full architecture details</summary>
@@ -359,7 +359,7 @@ python -m scripts.run_tournament --policies favourite,random,abstainer --seeds 2
 ## Honest Limitations
 
 - The served artifact bundle is the synthetic demo model. Real-data backtests use football-data.co.uk; live odds/squads/news remain demo backends.
-- The closing line wins on EPL data. This system's value is calibrated structure, not out-predicting Pinnacle.
+- The closing line wins on EPL data (0.9407 vs 1.0229 log loss). Prior versions used pre-close prices as the benchmark; the actual closing line is sharper. This system's value is calibrated structure, not out-predicting Pinnacle.
 - The 100% golden-set score reflects deterministic backends. Live providers will make it interesting.
 - New MCP servers extend reasoning immediately, but trained models cannot consume features they never saw.
 

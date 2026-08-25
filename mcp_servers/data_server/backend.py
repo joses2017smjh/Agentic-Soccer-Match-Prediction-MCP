@@ -183,7 +183,7 @@ class FootballDataBackend:
     ) -> None:
         from src.data.football_data_uk import load_seasons
 
-        self._matches, _ = load_seasons(
+        self._matches, *_ = load_seasons(
             division, list(start_years), competition=competition
         )
         self._matches = self._matches.sort_values("kickoff_utc")

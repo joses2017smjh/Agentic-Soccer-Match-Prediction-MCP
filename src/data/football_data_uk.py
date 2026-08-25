@@ -8,7 +8,9 @@ runs and tests are offline.
 Two outputs, both canonical:
 - ``team_match_frame``   TEAM_MATCH long frame (src/data/interfaces.py)
 - ``closing_odds_frame`` one row per match with payable decimal odds and
-                         de-vigged (power method) implied probabilities
+                         de-vigged (power method) implied probabilities;
+                         accepts ``odds_stage`` ("pre_close" or "close") to
+                         select pre-match vs actual closing prices
 
 xG proxy: this source has no xG. We use a documented shot-quality proxy
     xg_proxy = 0.30 * shots_on_target + 0.03 * (shots − shots_on_target)
@@ -120,21 +122,35 @@ def team_match_frame(
     return validate_frame(frame, TEAM_MATCH_COLUMNS, "TEAM_MATCH")
 
 
-def closing_odds_frame(raw: pd.DataFrame) -> pd.DataFrame:
-    """Per-match closing odds: payable prices + de-vigged probabilities.
+def closing_odds_frame(
+    raw: pd.DataFrame,
+    odds_stage: str = "pre_close",
+) -> pd.DataFrame:
+    """Per-match odds at a given stage: payable prices + de-vigged probabilities.
+
+    odds_stage:
+        "pre_close" -- pre-match prices ({book}H/D/A on football-data.co.uk)
+        "close"     -- actual closing prices ({book}CH/CD/CA)
 
     Uses the first bookmaker (Pinnacle-first order) with all three prices
-    present. These are CLOSING odds — the strongest market benchmark; as a
-    model feature they proxy the pre-cutoff price and that approximation is
-    disclosed wherever results are reported.
+    present.
     """
+    _suffixes = {
+        "pre_close": ("H", "D", "A"),
+        "close": ("CH", "CD", "CA"),
+    }
+    if odds_stage not in _suffixes:
+        raise ValueError(
+            f"odds_stage must be 'pre_close' or 'close', got {odds_stage!r}"
+        )
+    sh, sd, sa = _suffixes[odds_stage]
     raw = raw.dropna(subset=["HomeTeam", "AwayTeam", "FTHG", "FTAG"]).copy()
     kickoff = _kickoff_utc(raw)
     rows = []
     for idx in raw.index:
         rec = raw.loc[idx]
         for book in _BOOKS:
-            cols = [f"{book}H", f"{book}D", f"{book}A"]
+            cols = [f"{book}{sh}", f"{book}{sd}", f"{book}{sa}"]
             if all(c in raw.columns and pd.notna(rec[c]) and rec[c] > 1.0
                    for c in cols):
                 h, d, a = (float(rec[c]) for c in cols)
@@ -144,6 +160,7 @@ def closing_odds_frame(raw: pd.DataFrame) -> pd.DataFrame:
                 rows.append({
                     "match_id": _match_ids(raw.loc[[idx]], kickoff.loc[[idx]]).iloc[0],
                     "book": book,
+                    "odds_stage": odds_stage,
                     "odds_home": h, "odds_draw": d, "odds_away": a,
                     "odds_imp_home": float(ph), "odds_imp_draw": float(pd_),
                     "odds_imp_away": float(pa),
@@ -155,15 +172,23 @@ def closing_odds_frame(raw: pd.DataFrame) -> pd.DataFrame:
 def load_seasons(
     division: str, start_years: list[int], *,
     competition: str = "EPL", cache_dir: Path = DEFAULT_CACHE,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """(TEAM_MATCH frame, closing-odds frame) across several seasons."""
-    team_frames, odds_frames = [], []
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """(TEAM_MATCH frame, pre-close odds, close odds) across several seasons.
+
+    Pre-close odds are {book}H/D/A columns (pre-match prices); close odds
+    are {book}CH/CD/CA columns (actual closing prices).  The distinction
+    matters: pre-close prices are the model's feature anchor, close prices
+    are the benchmark.
+    """
+    team_frames, pre_close_frames, close_frames = [], [], []
     for year in start_years:
         raw = fetch_season_csv(division, year, cache_dir)
         season = f"{year}-{year + 1}"
         team_frames.append(team_match_frame(raw, competition, season))
-        odds_frames.append(closing_odds_frame(raw))
+        pre_close_frames.append(closing_odds_frame(raw, odds_stage="pre_close"))
+        close_frames.append(closing_odds_frame(raw, odds_stage="close"))
     return (
         pd.concat(team_frames, ignore_index=True),
-        pd.concat(odds_frames, ignore_index=True),
+        pd.concat(pre_close_frames, ignore_index=True),
+        pd.concat(close_frames, ignore_index=True),
     )
