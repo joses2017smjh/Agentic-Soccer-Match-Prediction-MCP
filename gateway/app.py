@@ -35,6 +35,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from agent.events import EventBus
 from agent.graph import build_graph
 from agent.memory import PredictionMemory
 from agent.state import AgentState, ParsedRequest
@@ -154,6 +155,7 @@ def root() -> dict[str, Any]:
                 "on port 3000. Hitting this port in a browser is expected to "
                 "show JSON, not a page.",
         "endpoints": ["/health", "/predict", "/approve", "/predict/stream",
+                      "/runs", "/runs/{thread_id}/events",
                       "/reflect", "/calibration", "/parlay/price", "/chat",
                       "/bracket", "/leagues",
                       "/leagues/{id}", "/leagues/{id}/predict",
@@ -337,9 +339,14 @@ def approve(body: ApproveIn) -> dict[str, Any]:
 def predict_stream(request: Request, body: PredictIn) -> StreamingResponse:
     thread_id = body.thread_id or str(uuid.uuid4())
 
-    # sync generator: Starlette runs it in a threadpool, which keeps the
-    # MCPRunner (anyio.run inside) usable here as well
     def gen() -> Iterator[str]:
+        bus = EventBus(thread_id)
+        _runner.event_bus = bus
+        bus.run_start(mode="workflow", match_id="")
+
+        pending: list[str] = []
+        bus.subscribe(lambda e: pending.append(e.to_json() + "\n"))
+
         start = time.monotonic()
         state = AgentState(request=ParsedRequest(raw_text=body.text))
         for update in _graph.stream(
@@ -348,16 +355,69 @@ def predict_stream(request: Request, body: PredictIn) -> StreamingResponse:
             for node in update:
                 yield json.dumps({"event": "node", "node": node,
                                   "thread_id": thread_id}) + "\n"
+            while pending:
+                yield pending.pop(0)
+
+        bus.run_end(outcome="complete")
+        while pending:
+            yield pending.pop(0)
+
         final = _graph.get_state(_config(thread_id))
         result = (dict(final.values) if not final.next
                   else {**dict(final.values),
                         "__interrupt__": final.tasks[0].interrupts})
-        yield json.dumps(
-            {"event": "result",
-             **_traced(result, thread_id, (time.monotonic() - start) * 1000)}
-        ) + "\n"
+        traced = _traced(result, thread_id, (time.monotonic() - start) * 1000)
+        traced["events"] = [e.to_dict() for e in bus.events]
+        yield json.dumps({"event": "result", **traced}) + "\n"
+
+        _runner.event_bus = None
 
     return StreamingResponse(gen(), media_type="application/x-ndjson")
+
+
+@app.get("/runs", dependencies=[Depends(require_api_key)])
+def list_runs(limit: int = 20) -> dict[str, Any]:
+    """Replay: list recent runs from the trace file."""
+    trace_path = Path(os.environ.get("TRACE_PATH", "data/traces/runs.jsonl"))
+    if not trace_path.exists():
+        return {"runs": []}
+    lines = trace_path.read_text().splitlines()
+    runs = []
+    for line in reversed(lines[-limit:]):
+        try:
+            rec = json.loads(line)
+            runs.append({
+                "thread_id": rec.get("thread_id"),
+                "match_id": rec.get("match_id"),
+                "mode": rec.get("mode"),
+                "outcome": rec.get("outcome"),
+                "elapsed_ms": rec.get("elapsed_ms"),
+                "n_calls": rec.get("n_calls"),
+                "at_utc": rec.get("at_utc"),
+            })
+        except json.JSONDecodeError:
+            continue
+    return {"runs": runs}
+
+
+@app.get("/runs/{thread_id}/events", dependencies=[Depends(require_api_key)])
+def run_events(thread_id: str) -> dict[str, Any]:
+    """Replay: full event stream for a specific run."""
+    trace_path = Path(os.environ.get("TRACE_PATH", "data/traces/runs.jsonl"))
+    if not trace_path.exists():
+        raise HTTPException(status_code=404, detail="no traces found")
+    for line in reversed(trace_path.read_text().splitlines()):
+        try:
+            rec = json.loads(line)
+            if rec.get("thread_id") == thread_id:
+                return {
+                    "thread_id": thread_id,
+                    "trace": rec,
+                    "events": rec.get("events", []),
+                }
+        except json.JSONDecodeError:
+            continue
+    raise HTTPException(status_code=404, detail=f"run {thread_id} not found")
 
 
 @app.post("/reflect", dependencies=[Depends(require_api_key)])

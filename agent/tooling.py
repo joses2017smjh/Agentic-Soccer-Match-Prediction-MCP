@@ -13,15 +13,19 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from typing import Any, Callable, Protocol
 
+from agent.events import EventBus, _digest
 from agent.state import ToolCall
 
 DEFAULT_TIMEOUT_S = 20.0
 
 
 class ToolRunner(Protocol):
+    event_bus: EventBus | None
+
     def call(self, server: str, tool: str, **args: Any) -> ToolCall: ...
 
 
@@ -39,25 +43,49 @@ def _plain_json(value: Any) -> Any:
     return json.loads(json.dumps(value, default=default))
 
 
-def _execute(server: str, tool: str, fn: Callable[[], Any], args: dict) -> ToolCall:
+def _execute(
+    server: str, tool: str, fn: Callable[[], Any], args: dict,
+    bus: EventBus | None = None,
+) -> ToolCall:
+    if bus:
+        bus.tool_call_start(server, tool, args)
     start = time.monotonic()
     try:
         result = _plain_json(fn())
+        elapsed = (time.monotonic() - start) * 1000
+        if bus:
+            bus.tool_call_end(
+                server, tool, ok=True, latency_ms=elapsed,
+                result_digest=_digest(result),
+            )
         return ToolCall(server=server, tool=tool, args=args, ok=True,
-                        result=result,
-                        latency_ms=(time.monotonic() - start) * 1000)
+                        result=result, latency_ms=elapsed)
     except Exception as exc:  # noqa: BLE001 — failures become ledger data
+        elapsed = (time.monotonic() - start) * 1000
+        err = f"{type(exc).__name__}: {exc}"
+        if bus:
+            bus.tool_call_end(
+                server, tool, ok=False, latency_ms=elapsed, error=err,
+            )
         return ToolCall(server=server, tool=tool, args=args, ok=False,
-                        error=f"{type(exc).__name__}: {exc}",
-                        latency_ms=(time.monotonic() - start) * 1000)
+                        error=err, latency_ms=elapsed)
 
 
 class InProcessRunner:
     """Direct calls into mcp_servers logic. ``disabled`` simulates outages
     for fault-injection evals (e.g. {'news-sentiment'})."""
 
-    def __init__(self, disabled: set[str] | None = None) -> None:
+    def __init__(
+        self, disabled: set[str] | None = None,
+        event_bus: EventBus | None = None,
+    ) -> None:
         self.disabled = disabled or set()
+        self._local = threading.local()
+        self._build_registry()
+        if event_bus is not None:
+            self._local.bus = event_bus
+
+    def _build_registry(self) -> None:
         from mcp_servers.code_server import server as code
         from mcp_servers.data_server import server as data
         from mcp_servers.ml_server import server as ml
@@ -78,26 +106,44 @@ class InProcessRunner:
             ("code-env", "list_datasets"): lambda: code.list_datasets.fn(),
         }
 
+    @property
+    def event_bus(self) -> EventBus | None:
+        return getattr(self._local, "bus", None)
+
+    @event_bus.setter
+    def event_bus(self, bus: EventBus | None) -> None:
+        self._local.bus = bus
+
     def call(self, server: str, tool: str, **args: Any) -> ToolCall:
         if server in self.disabled:
+            if self.event_bus:
+                self.event_bus.tool_call_start(server, tool, args)
+                self.event_bus.tool_call_end(
+                    server, tool, ok=False, latency_ms=0,
+                    error="ServerDown: simulated outage",
+                )
             return ToolCall(server=server, tool=tool, args=args, ok=False,
                             error="ServerDown: simulated outage")
         fn = self._registry.get((server, tool))
         if fn is None:
             return ToolCall(server=server, tool=tool, args=args, ok=False,
                             error=f"UnknownTool: {server}.{tool}")
-        return _execute(server, tool, lambda: fn(**args), args)
+        return _execute(server, tool, lambda: fn(**args), args, bus=self.event_bus)
 
 
 class MCPRunner:
     """Real MCP client. Discovers tools at startup from all three servers."""
 
-    def __init__(self, timeout_s: float = DEFAULT_TIMEOUT_S) -> None:
+    def __init__(
+        self, timeout_s: float = DEFAULT_TIMEOUT_S,
+        event_bus: EventBus | None = None,
+    ) -> None:
         import anyio
         from langchain_mcp_adapters.client import MultiServerMCPClient
 
         self._anyio = anyio
         self.timeout_s = timeout_s
+        self.event_bus = event_bus
         self._client = MultiServerMCPClient(self._connections())
         self._tools = {
             t.name: t for t in anyio.run(self._client.get_tools)
@@ -133,4 +179,4 @@ class MCPRunner:
                     return await lc_tool.ainvoke(args)
             return self._anyio.run(_inner)
 
-        return _execute(server, tool, _run, args)
+        return _execute(server, tool, _run, args, bus=self.event_bus)

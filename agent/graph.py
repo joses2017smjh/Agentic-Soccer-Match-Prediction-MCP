@@ -27,6 +27,9 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+import time
+
+from agent.events import EventBus
 from agent.parse import parse_request
 from agent.state import AgentState, ToolCall
 from agent.synthesis import render_answer
@@ -36,11 +39,27 @@ LEAGUE_AVG = {"form_xg_for": 1.35, "form_xg_against": 1.35}
 
 
 def build_graph(runner: ToolRunner, *, ev_threshold: float = 0.03,
-                checkpointer: Any | None = None):
+                checkpointer: Any | None = None,
+                event_bus: EventBus | None = None):
+    bus = event_bus
+
     def _call(state: AgentState, server: str, tool: str, **args: Any) -> ToolCall:
         call = runner.call(server, tool, **args)
         state.note_call(call)
         return call
+
+    def _wrap(name: str, fn):
+        """Wrap a node function to emit enter/exit events."""
+        def wrapped(state: AgentState) -> dict:
+            if bus:
+                bus.node_enter(name)
+            t0 = time.monotonic()
+            result = fn(state)
+            if bus:
+                bus.node_exit(name, (time.monotonic() - t0) * 1000)
+            return result
+        wrapped.__name__ = name
+        return wrapped
 
     # ------------------------------------------------------------- nodes
 
@@ -148,10 +167,22 @@ def build_graph(runner: ToolRunner, *, ev_threshold: float = 0.03,
 
     def infer(state: AgentState) -> dict:
         ctx = _match_context(state)
+
+        if bus:
+            anchor = {k: ctx.get(f"odds_imp_{k}", 0) for k in ("home", "draw", "away")}
+            bus.belief_update("market_anchor", probs_before=None, probs_after=anchor)
+
         call = _call(state, "ml-inference", "predict_match",
                      match_id=state.request.match_id, match_context=ctx)
+        pred = call.result if call.ok else None
+
+        if bus and pred:
+            probs = pred.get("outcome_probs", {})
+            anchor = {k: ctx.get(f"odds_imp_{k}", 0) for k in ("home", "draw", "away")}
+            bus.belief_update("model_prediction", probs_before=anchor, probs_after=probs)
+
         return {
-            "prediction": call.result if call.ok else None,
+            "prediction": pred,
             "ledger": state.ledger, "degraded": state.degraded,
         }
 
@@ -183,7 +214,7 @@ def build_graph(runner: ToolRunner, *, ev_threshold: float = 0.03,
     for name, fn in [("parse", parse), ("gather", gather), ("news", news),
                      ("infer", infer), ("approve", approve),
                      ("synthesize", synthesize)]:
-        graph.add_node(name, fn)
+        graph.add_node(name, _wrap(name, fn))
     graph.add_edge(START, "parse")
     graph.add_edge("parse", "gather")
     graph.add_edge("gather", "news")

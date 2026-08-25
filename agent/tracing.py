@@ -24,6 +24,7 @@ def _trace_path() -> Path:
 def record_trace(
     *, thread_id: str, mode: str, state: dict[str, Any] | Any,
     elapsed_ms: float, outcome: str,
+    events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Append one run record. ``state`` is an AgentState or its dict dump."""
     dump = state if isinstance(state, dict) else state.model_dump()
@@ -32,7 +33,7 @@ def record_trace(
         "at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "thread_id": thread_id,
         "mode": mode,
-        "outcome": outcome,                     # complete | pending_approval | error
+        "outcome": outcome,
         "elapsed_ms": round(elapsed_ms, 1),
         "match_id": dump.get("request", {}).get("match_id", ""),
         "degraded": dump.get("degraded", []),
@@ -47,6 +48,7 @@ def record_trace(
         ],
         "n_calls": len(ledger),
         "n_failed": sum(1 for c in ledger if not c["ok"]),
+        "events": events or [],
     }
     path = _trace_path()
     path.parent.mkdir(parents=True, exist_ok=True)

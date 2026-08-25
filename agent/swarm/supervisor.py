@@ -16,12 +16,14 @@ inside plan/verify upgrades).
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Any
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from agent.events import EventBus
 from agent.memory import PredictionMemory
 from agent.parse import parse_request
 from agent.swarm.critic import critique_prediction
@@ -40,13 +42,27 @@ def build_swarm(
     disabled_servers: set[str] | None = None,
     checkpointer: Any | None = None,
     insight_path: Path | None = None,
+    event_bus: EventBus | None = None,
 ):
     registry = ToolRegistry(disabled_servers=disabled_servers)
+    bus = event_bus
     mem = SwarmMemory(
         insight_path or Path("data/memory/swarm_insights.jsonl"),
         PredictionMemory(Path(os.environ.get(
             "MEMORY_PATH", "data/memory/predictions.jsonl"))),
     )
+
+    def _wrap(name: str, fn):
+        def wrapped(state: SwarmState) -> dict:
+            if bus:
+                bus.node_enter(name)
+            t0 = time.monotonic()
+            result = fn(state)
+            if bus:
+                bus.node_exit(name, (time.monotonic() - t0) * 1000)
+            return result
+        wrapped.__name__ = name
+        return wrapped
 
     def parse(state: SwarmState) -> dict:
         return {"request": parse_request(state.request.raw_text)}
@@ -60,7 +76,11 @@ def build_swarm(
 
     def plan(state: SwarmState) -> dict:
         caps = registry.available_capabilities()
-        return {"plan": plan_dag(state.request, caps)}
+        dag = plan_dag(state.request, caps)
+        if bus:
+            bus.plan_built([{"id": n.id, "kind": n.kind,
+                             "depends_on": n.depends_on} for n in dag])
+        return {"plan": dag}
 
     def execute(state: SwarmState) -> dict:
         # only run gather/infer layers; verify & synthesize are graph nodes
@@ -75,7 +95,7 @@ def build_swarm(
                 "degraded": state.degraded}
 
     def verify(state: SwarmState) -> dict:
-        crit = critique_prediction(state)
+        crit = critique_prediction(state, bus=bus)
         return {"critiques": state.critiques + [crit]}
 
     def route_after_verify(state: SwarmState) -> str:
@@ -136,7 +156,7 @@ def build_swarm(
                      ("execute", execute), ("verify", verify),
                      ("replan", replan), ("synthesize", synthesize),
                      ("commit", commit)]:
-        g.add_node(name, fn)
+        g.add_node(name, _wrap(name, fn))
     g.add_edge(START, "parse")
     g.add_edge("parse", "align")
     g.add_edge("align", "plan")

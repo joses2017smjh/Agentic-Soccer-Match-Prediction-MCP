@@ -17,6 +17,7 @@ all arithmetic to the ML inference tool (the deterministic compute sandbox).
 
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -97,9 +98,13 @@ def execute_node(
     node: TaskNode, state: SwarmState, runner: ToolRunner, registry: ToolRegistry
 ) -> None:
     """Run one node, mutating it and the shared state in place."""
+    bus = runner.event_bus
     node.status = "running"
     node.attempts += 1
     req = state.request
+    if bus:
+        bus.node_enter(f"swarm/{node.kind}/{node.id}")
+    t0 = time.monotonic()
 
     if node.kind == "gather_stats":
         got = False
@@ -143,15 +148,30 @@ def execute_node(
 
     elif node.kind == "infer":
         ctx = _match_context(state)
+        if bus:
+            anchor = {k: ctx.get(f"odds_imp_{k}", 0)
+                      for k in ("home", "draw", "away")}
+            bus.belief_update("market_anchor", probs_before=None,
+                              probs_after=anchor)
         c = _call_with_retry(runner, state, "ml-inference", "predict_match",
                              match_id=req.match_id, match_context=ctx)
         if c and c.ok:
             state.prediction = c.result
             node.result = {"model_version": c.result.get("model_version")}
             node.status = "done"
+            if bus:
+                probs = c.result.get("outcome_probs", {})
+                anchor = {k: ctx.get(f"odds_imp_{k}", 0)
+                          for k in ("home", "draw", "away")}
+                bus.belief_update("model_prediction", probs_before=anchor,
+                                  probs_after=probs)
         else:
             node.error = c.error if c else "no result"
             node.status = "failed"
+
+    if bus:
+        bus.node_exit(f"swarm/{node.kind}/{node.id}",
+                      (time.monotonic() - t0) * 1000)
 
 
 def run_layer(
