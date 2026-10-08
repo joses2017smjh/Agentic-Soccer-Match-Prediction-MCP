@@ -1,0 +1,26 @@
+name: Mobile prediction API
+
+on:
+  push:
+    branches: [main]
+    paths: ['gateway/**', 'agent/**', 'src/**', 'tests/test_mobile.py', 'pyproject.toml', '.github/workflows/mobile-api.yml']
+  pull_request:
+    paths: ['gateway/**', 'agent/**', 'src/**', 'tests/test_mobile.py', 'pyproject.toml', '.github/workflows/mobile-api.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contracts-and-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev]'
+      - run: pytest -q tests/test_mobile.py tests/test_gateway.py tests/test_agent.py tests/test_m2_events.py
