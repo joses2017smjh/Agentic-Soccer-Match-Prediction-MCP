@@ -2,6 +2,60 @@
 
 **[Live Demo](https://agentic-soccer-match-prediction-mcp.vercel.app)**
 
+### Android and iOS companion integration
+
+[Agent Field app and feature demo](https://github.com/joses2017smjh/MetaNavT/tree/main/mobile)
+connect this repository and MetaNavT in one Android/iPhone interface.
+
+The shared mobile companion uses a new adapter in [`gateway/mobile.py`](gateway/mobile.py).
+Its offline examples come from this repository's synthetic model and the actual
+LangGraph workflow. The examples show probabilities, expected goals, scorelines,
+uncertainty, the MCP tool trace, and a pending approval state. Demo mode does not
+require API keys or model installation and is labeled synthetic throughout.
+
+Start the adapter from a checkout with Python 3.11 or later:
+
+```bash
+python -m pip install 'fastapi>=0.111' 'uvicorn>=0.30' 'httpx>=0.27' 'pydantic>=2.7'
+uvicorn gateway.mobile:app --host 0.0.0.0 --port 8011
+```
+
+Use `GET /mobile/health` for adapter configuration, `GET /mobile/demo` for the
+three bundled examples, and `POST /mobile/predict` with this body:
+
+```json
+{"text":"Predict Arsenal vs Man City","mode":"demo"}
+```
+
+For live mode, configure `SOCCER_GATEWAY_URL` to the existing gateway base URL,
+`SOCCER_GATEWAY_API_KEY` to its server-side key when required, and `MOBILE_API_KEY`
+to a separate access token. The phone sends that access token in `X-API-Key` and
+sets `mode` to `live`. Live mode fails closed if the mobile token is not configured.
+The adapter delegates to `/predict` in workflow mode; it does not call a model
+directly, resume approvals, settle matches, or place wagers. Existing gateway
+prediction memory and trace logging still apply. A server response can use demo
+data or a synthetic model, so live mode does not imply current match forecasts.
+
+`MOBILE_ALLOWED_ORIGINS` lists explicit comma-separated browser preview origins;
+the default is no allowed browser origin. Native Android/iOS clients are not
+subject to browser CORS. The HTTP deadline is `MOBILE_TIMEOUT_SECONDS` (45 seconds
+by default, at most 120). Timeouts and unavailable agents produce visible
+504/502 responses; upstream auth, validation and rate-limit statuses are retained.
+
+The [OpenAPI contract](gateway/fixtures/mobile.openapi.json) and the
+[offline fixture bundle](gateway/fixtures/mobile_demo.json) document the exact
+payloads. The fixture records source/model hashes and the synthetic model card.
+Its fixed fixture clock is not a current match-data timestamp, and tool latency
+fields are omitted. Rebuild it with the full repository dependencies installed:
+
+```bash
+DATA_BACKEND=demo python -m scripts.export_mobile_demo
+pytest -q tests/test_mobile.py
+```
+
+The original `FastMCP` integration uses the MCP Python SDK 1.x API; the dependency
+is bounded to `mcp>=1.9,<2` because SDK 2.x renamed that API.
+
 Calibrated match predictions at five layers -- outcome, exact score, event sequence, player props, market value -- served through a LangGraph agent over three MCP servers, with conformal uncertainty guarantees, human-in-the-loop staking approval, and a full RL training pipeline that transfers to real markets.
 
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)

@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "scope": "Local real HTTP integration; two Uvicorn processes; actual existing agent graph with synthetic model and DemoBackend. Not a forecast-quality or load benchmark. No Android/iOS device run.",
+  "checked_at_utc": "2026-10-08T02:39:15Z",
+  "python": "3.11.13",
+  "packages": {
+    "fastapi": "0.142.4",
+    "httpx": "0.28.1",
+    "mcp": "1.30.0",
+    "langgraph": "1.2.14",
+    "xgboost": "3.2.0",
+    "pydantic": "2.13.5"
+  },
+  "unit_validation": {
+    "command": "pytest -q tests/test_mobile.py tests/test_gateway.py tests/test_agent.py",
+    "passed": 48,
+    "failed": 0
+  },
+  "http_cases": [
+    {
+      "id": "arsenal-city",
+      "mode": "demo",
+      "http_status": 200,
+      "status": "complete",
+      "model_version": "v0-mobile-demo",
+      "tool_call_count": 11,
+      "elapsed_seconds": 0.0054
+    },
+    {
+      "id": "arsenal-city",
+      "mode": "live",
+      "http_status": 200,
+      "status": "complete",
+      "model_version": "v0-mobile-demo",
+      "tool_call_count": 11,
+      "elapsed_seconds": 0.2361
+    },
+    {
+      "id": "liverpool-city",
+      "mode": "demo",
+      "http_status": 200,
+      "status": "complete",
+      "model_version": "v0-mobile-demo",
+      "tool_call_count": 11,
+      "elapsed_seconds": 0.0033
+    },
+    {
+      "id": "liverpool-city",
+      "mode": "live",
+      "http_status": 200,
+      "status": "complete",
+      "model_version": "v0-mobile-demo",
+      "tool_call_count": 11,
+      "elapsed_seconds": 0.1201
+    },
+    {
+      "id": "approval-required",
+      "mode": "demo",
+      "http_status": 200,
+      "status": "pending_approval",
+      "model_version": "v0-mobile-demo",
+      "tool_call_count": 0,
+      "elapsed_seconds": 0.0025
+    },
+    {
+      "id": "approval-required",
+      "mode": "live",
+      "http_status": 200,
+      "status": "pending_approval",
+      "model_version": null,
+      "tool_call_count": 0,
+      "elapsed_seconds": 0.0757
+    }
+  ],
+  "auth_without_token_status": 401,
+  "approval_route_status": 404,
+  "fixture_sha256": "feac2220520f295c255533d45920dbef97aeaddf4ecbd36efe09727022f4f5fb",
+  "source_sha256": {
+    "gateway/mobile.py": "288a646d2e96dbe8b62a2ac4c2a3d6ab488e2a1a41a49f9ab80677465159be72",
+    "scripts/export_mobile_demo.py": "172d41662c220b8563af9199892f964b89eca6f51d16043c79ed61f64caa6397",
+    "tests/test_mobile.py": "33c55618d776e841f975fc70442c1c67f8efe2d10e049850a4f63c7841990e06"
+  },
+  "cleanup": "Both test-owned processes terminated in finally; temporary operator tokens and memory deleted."
+}
