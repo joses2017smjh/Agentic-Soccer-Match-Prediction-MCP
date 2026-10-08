@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "scope": "Local real HTTP integration; two Uvicorn processes; actual existing agent graph with synthetic model and DemoBackend. Not a forecast-quality or load benchmark. No Android/iOS device run.",
-  "checked_at_utc": "2026-10-08T02:39:15Z",
+  "checked_at_utc": "2026-10-08T02:50:40Z",
   "python": "3.11.13",
   "packages": {
     "fastapi": "0.142.4",
@@ -12,8 +12,8 @@
     "pydantic": "2.13.5"
   },
   "unit_validation": {
-    "command": "pytest -q tests/test_mobile.py tests/test_gateway.py tests/test_agent.py",
-    "passed": 48,
+    "command": "pytest -q tests/test_mobile.py tests/test_gateway.py tests/test_agent.py tests/test_m2_events.py",
+    "passed": 81,
     "failed": 0
   },
   "http_cases": [
@@ -24,7 +24,7 @@
       "status": "complete",
       "model_version": "v0-mobile-demo",
       "tool_call_count": 11,
-      "elapsed_seconds": 0.0054
+      "elapsed_seconds": 0.0035
     },
     {
       "id": "arsenal-city",
@@ -33,7 +33,7 @@
       "status": "complete",
       "model_version": "v0-mobile-demo",
       "tool_call_count": 11,
-      "elapsed_seconds": 0.2361
+      "elapsed_seconds": 0.0413
     },
     {
       "id": "liverpool-city",
@@ -42,7 +42,7 @@
       "status": "complete",
       "model_version": "v0-mobile-demo",
       "tool_call_count": 11,
-      "elapsed_seconds": 0.0033
+      "elapsed_seconds": 0.002
     },
     {
       "id": "liverpool-city",
@@ -51,7 +51,7 @@
       "status": "complete",
       "model_version": "v0-mobile-demo",
       "tool_call_count": 11,
-      "elapsed_seconds": 0.1201
+      "elapsed_seconds": 0.0219
     },
     {
       "id": "approval-required",
@@ -60,7 +60,7 @@
       "status": "pending_approval",
       "model_version": "v0-mobile-demo",
       "tool_call_count": 0,
-      "elapsed_seconds": 0.0025
+      "elapsed_seconds": 0.0015
     },
     {
       "id": "approval-required",
@@ -69,16 +69,26 @@
       "status": "pending_approval",
       "model_version": null,
       "tool_call_count": 0,
-      "elapsed_seconds": 0.0757
+      "elapsed_seconds": 0.0198
     }
   ],
   "auth_without_token_status": 401,
   "approval_route_status": 404,
+  "upstream_source_commit": "a60d0c95a20fe73624411337c9ca9e2e67a87881",
+  "upstream_source_sha256": {
+    "gateway/app.py": "34b4f9f6270433938bbb3cd6bf8b83e7a33f5d0c8db83d28e5dd183473fa1fae",
+    "agent/graph.py": "bd8a5499f7447a72869a5b18eabb96141e7f2cd71ed6540cb10820b1737d91b9",
+    "agent/events.py": "04e25fe67ace2f6fa5a93f712c00968c1d5c0adff3d383cd048cab5e6e9a49a7",
+    "agent/tooling.py": "6110a0dc74ceeee445d713f252a10c537b076febcb1e15e9053bece0672618cc",
+    "src/models/gbm.py": "259cd478238999e8afeccda98171e93b035909a9e5626ea49cf78739b7cb1cfc",
+    "src/models/calibration.py": "ea837ce57380e3ab368100c5431ad6dc799d95841fcaccc19aafbfd5031af3f2",
+    "mcp_servers/data_server/backend.py": "02eceeaf06805798c4238b09c458a93b2921a2cc780b35102f57538291294710"
+  },
   "fixture_sha256": "feac2220520f295c255533d45920dbef97aeaddf4ecbd36efe09727022f4f5fb",
   "source_sha256": {
     "gateway/mobile.py": "288a646d2e96dbe8b62a2ac4c2a3d6ab488e2a1a41a49f9ab80677465159be72",
     "scripts/export_mobile_demo.py": "172d41662c220b8563af9199892f964b89eca6f51d16043c79ed61f64caa6397",
-    "tests/test_mobile.py": "33c55618d776e841f975fc70442c1c67f8efe2d10e049850a4f63c7841990e06"
+    "tests/test_mobile.py": "c2625c20ed05731cf123b2d9ee57c058c1c55b638737238e10586390bca0c59a"
   },
   "cleanup": "Both test-owned processes terminated in finally; temporary operator tokens and memory deleted."
 }

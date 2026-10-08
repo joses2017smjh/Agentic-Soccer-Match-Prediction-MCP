@@ -13,6 +13,9 @@ jobs:
         python-version: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Offline demo provenance refers to its captured source revision.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}

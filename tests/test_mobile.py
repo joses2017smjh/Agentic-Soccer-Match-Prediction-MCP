@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -37,7 +38,14 @@ def test_keyless_demo_has_actual_workflow_provenance() -> None:
     assert bundle["model_card"]["training_window"] == "synthetic-demo"
     assert len(bundle["samples"]) == 3
     for filename, digest in bundle["source_sha256"].items():
-        assert hashlib.sha256((ROOT / filename).read_bytes()).hexdigest() == digest
+        current = (ROOT / filename).read_bytes()
+        if hashlib.sha256(current).hexdigest() != digest:
+            # Frozen demos describe their captured revision. Upstream feature
+            # changes must not relabel old example probabilities as new output.
+            captured = subprocess.check_output(
+                ["git", "show", f"{bundle['base_commit']}:{filename}"], cwd=ROOT
+            )
+            assert hashlib.sha256(captured).hexdigest() == digest
     for sample in bundle["samples"]:
         response = client.post("/mobile/predict", json=sample["input"])
         assert response.status_code == 200

@@ -45,6 +45,8 @@ by default, at most 120). Timeouts and unavailable agents produce visible
 The [OpenAPI contract](gateway/fixtures/mobile.openapi.json) and the
 [offline fixture bundle](gateway/fixtures/mobile_demo.json) document the exact
 payloads. The fixture records source/model hashes and the synthetic model card.
+Its captured source revision stays fixed when the live gateway evolves; live
+requests delegate to the current gateway, independently of the offline replay.
 Its fixed fixture clock is not a current match-data timestamp, and tool latency
 fields are omitted. Rebuild it with the full repository dependencies installed:
 
