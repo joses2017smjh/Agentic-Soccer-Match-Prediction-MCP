@@ -27,6 +27,10 @@ jobs:
             fastapi uvicorn httpx
       - name: Build demo artifacts
         run: python -m scripts.build_demo_artifacts
+      - name: Prepare real historical test data
+        # Several replay/reward suites require cached real season CSVs at
+        # collection time. Keep the data source and validation explicit.
+        run: python -m scripts.prepare_test_data
       - name: Unit tests + golden-set regression gate
         run: pytest -q
       - name: Golden-set report (artifact)

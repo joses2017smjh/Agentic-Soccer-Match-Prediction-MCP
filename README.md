@@ -314,8 +314,16 @@ git clone <this repo> && cd Predictive_Modeling
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 python -m scripts.build_demo_artifacts
+python -m scripts.prepare_test_data
 pytest -q
 ```
+
+The full suite replays six real EPL seasons (2019/20–2024/25). The preparation
+command downloads the official [football-data.co.uk CSVs](https://www.football-data.co.uk/englandm.php)
+through the existing provider, validates all 380 fixtures per season and required
+results/odds columns, and records source URLs and SHA256 hashes in
+`evals/out/test_data_sources.json`. Downloads stay in the ignored local cache;
+the mobile demo tests remain independent of these historical datasets.
 
 ```bash
 # Gateway
