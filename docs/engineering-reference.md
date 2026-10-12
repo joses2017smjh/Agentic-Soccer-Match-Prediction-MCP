@@ -1,0 +1,457 @@
+# Agentic Soccer engineering reference
+
+[Project overview and quickstart](../README.md)
+
+This reference retains the original feature walkthrough, figures, historical experiments, and deployment details. Reported test counts and timings describe past runs, not a fresh verification. GIFs and deterministic evaluation fixtures illustrate the application; the served artifact bundle is synthetic, and odds/squads/news use demo backends. Historical backtests are separate from the hosted demo.
+
+# Agentic Soccer Match Prediction over MCP
+
+**[Live Demo](https://agentic-soccer-match-prediction-mcp.vercel.app)**
+
+### Android and iOS companion integration
+
+[Agent Field app and feature demo](https://github.com/joses2017smjh/MetaNavT/tree/main/mobile)
+connect this repository and MetaNavT in one Android/iPhone interface.
+
+The shared mobile companion uses a new adapter in [`gateway/mobile.py`](../gateway/mobile.py).
+Its offline examples come from this repository's synthetic model and the actual
+LangGraph workflow. The examples show probabilities, expected goals, scorelines,
+uncertainty, the MCP tool trace, and a pending approval state. Demo mode does not
+require API keys or model installation and is labeled synthetic throughout.
+
+Start the adapter from a checkout with Python 3.11 or later:
+
+```bash
+python -m pip install 'fastapi>=0.111' 'uvicorn>=0.30' 'httpx>=0.27' 'pydantic>=2.7'
+uvicorn gateway.mobile:app --host 0.0.0.0 --port 8011
+```
+
+Use `GET /mobile/health` for adapter configuration, `GET /mobile/demo` for the
+three bundled examples, and `POST /mobile/predict` with this body:
+
+```json
+{"text":"Predict Arsenal vs Man City","mode":"demo"}
+```
+
+For live mode, configure `SOCCER_GATEWAY_URL` to the existing gateway base URL,
+`SOCCER_GATEWAY_API_KEY` to its server-side key when required, and `MOBILE_API_KEY`
+to a separate access token. The phone sends that access token in `X-API-Key` and
+sets `mode` to `live`. Live mode fails closed if the mobile token is not configured.
+The adapter delegates to `/predict` in workflow mode; it does not call a model
+directly, resume approvals, settle matches, or place wagers. Existing gateway
+prediction memory and trace logging still apply. A server response can use demo
+data or a synthetic model, so live mode does not imply current match forecasts.
+
+`MOBILE_ALLOWED_ORIGINS` lists explicit comma-separated browser preview origins;
+the default is no allowed browser origin. Native Android/iOS clients are not
+subject to browser CORS. The HTTP deadline is `MOBILE_TIMEOUT_SECONDS` (45 seconds
+by default, at most 120). Timeouts and unavailable agents produce visible
+504/502 responses; upstream auth, validation and rate-limit statuses are retained.
+
+The [OpenAPI contract](../gateway/fixtures/mobile.openapi.json) and the
+[offline fixture bundle](../gateway/fixtures/mobile_demo.json) document the exact
+payloads. The fixture records source/model hashes and the synthetic model card.
+Its captured source revision stays fixed when the live gateway evolves; live
+requests delegate to the current gateway, independently of the offline replay.
+Its fixed fixture clock is not a current match-data timestamp, and tool latency
+fields are omitted. Rebuild it with the full repository dependencies installed:
+
+```bash
+DATA_BACKEND=demo python -m scripts.export_mobile_demo
+pytest -q tests/test_mobile.py
+```
+
+The original `FastMCP` integration uses the MCP Python SDK 1.x API; the dependency
+is bounded to `mcp>=1.9,<2` because SDK 2.x renamed that API.
+
+Calibrated match predictions at five layers -- outcome, exact score, event sequence, player props, market value -- served through a LangGraph agent over three MCP servers, with conformal prediction sets, approval gates, and experimental policies evaluated on simulated and historical market environments. The served model is synthetic; the historical evaluations below are separate.
+
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![XGBoost](https://img.shields.io/badge/XGBoost-3.x-EB0028)
+![LangGraph](https://img.shields.io/badge/LangGraph-orchestration-1C3C3C)
+![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-FastMCP-6E56CF)
+![FastAPI](https://img.shields.io/badge/FastAPI-gateway-009688?logo=fastapi&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-15%20App%20Router-000000?logo=nextdotjs&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-compose-2496ED?logo=docker&logoColor=white)
+![pytest](https://img.shields.io/badge/pytest-505%20tests-0A9EDC?logo=pytest&logoColor=white)
+
+---
+
+## The Product
+
+### League Hub
+
+![League hub demo](../docs/img/demo_league_hub.gif)
+
+Liga MX, MLS, top-5 European leagues, international tournaments -- live standings, opponent-adjusted Elo, and a bracket builder.
+
+### League Detail
+
+![League detail demo](../docs/img/demo_league_detail.gif)
+
+Full standings with Elo ratings, latest results, and a matchup projector. Click any league from the hub to drill in.
+
+### Matchup Projection
+
+![Matchup projection demo](../docs/img/demo_matchup.gif)
+
+Pick two teams, get the full Dixon-Coles breakdown: 1X2 probabilities, xG, advance chance, likely scorelines, and a projected scenario with named players from StatsBomb data.
+
+### WWC Bracket
+
+![Bracket demo](../docs/img/demo_bracket.gif)
+
+Tournament bracket seeded by opponent-adjusted Elo. Each tie shows advance probability; scroll to the seeded field table.
+
+### Agent Console
+
+![Agent console demo](../docs/img/demo_agent.gif)
+
+Type a natural-language query, the MCP agent runs 11 tool calls across 3 servers, and returns: outcome probabilities, Dixon-Coles score grid, conformal uncertainty set (90% coverage), headline scenario with named scorers, and the full evidence trail with per-call latency.
+
+### Agent Insight -- "is there value here?"
+
+![Agent insight interaction](../docs/img/demo_insight.gif)
+
+The full evidence-grounded flow: user asks about a bet, agent checks fixtures, odds, availability, and sentiment across MCP servers, then returns probabilities, edge analysis (model fair vs market odds), conformal uncertainty, and a Kelly-sized recommendation -- pending human approval.
+
+### Evaluation Harness
+
+![Evaluation harness demo](../docs/img/demo_evaluation.gif)
+
+Mixed-verifier evaluation with composite scoring, reward-hacking floor test, stage-wise attribution, and trajectory failure taxonomy -- all runnable from the UI.
+
+### Parlay Builder
+
+![Parlay builder demo](../docs/img/demo_parlay.gif)
+
+Correlated-parlay pricing from the Dixon-Coles grid. Same-match legs are priced jointly; the correlation factor shows how much independent multiplication over- or under-prices your parlay.
+
+<details>
+<summary>Mobile views</summary>
+
+![Mobile league](../docs/img/ui-mobile-league.png)
+![Mobile bracket](../docs/img/ui-mobile-bracket.png)
+
+</details>
+
+---
+
+## Architecture
+
+### One Grid, All Markets
+
+![Dixon-Coles grid morph](../docs/img/demo_grid_morph.gif)
+
+Every market -- 1X2, over/under, BTTS, scorelines -- derives from one Dixon-Coles bivariate Poisson grid. Sweep the parameters and watch all markets update in lockstep. Sharing the grid ties these derived market probabilities to the same score distribution.
+
+### Agent Trace
+
+![Agent trace](../docs/img/demo_agent_trace.gif)
+
+A single prediction fires 11 tool calls across 3 MCP servers in 239 ms. The architecture lights up in sequence: sports-data for context/odds/stats, news-sentiment for availability/sentiment, ml-inference for the final prediction.
+
+![System architecture](../docs/img/architecture.png)
+
+**Phase A** -- Offline ML pipeline: leakage-guarded features, XGBoost + isotonic calibration + split-conformal sets, Dixon-Coles score grid, goal-timing model, player-prop allocation, edge/EV suggestions. One versioned artifact bundle.
+
+**Phase B** -- Online agentic layer: FastAPI gateway, LangGraph orchestrator (MCP client), 5 MCP servers (Sports Data, News/Sentiment, ML Inference, Code Sandbox, Betting Book). Three execution modes: deterministic Workflow, parallel Swarm with adversarial Critic, and ReAct for follow-ups.
+
+---
+
+## Real-World Results
+
+### EPL Backtest -- 1,520 matches, walk-forward
+
+| Forecaster | Log Loss | Brier | RPS |
+|---|---|---|---|
+| **Closing line (Pinnacle)** | **0.9407** | **0.5564** | **0.1907** |
+| Model (market-anchored) | 1.0229 | 0.5866 | 0.2028 |
+| Naive baseline | 1.0652 | 0.6446 | 0.2337 |
+
+The closing line wins -- reported honestly. The model uses the pre-close market as a base margin (B1), benchmarked against the actual closing line (B0). The model beats the naive baseline on every metric in every fold. Conformal coverage: 0.869 vs 0.90 target.
+
+### World Cup 2026 -- 102 live tournament matches
+
+| Forecaster | Log Loss | Brier | Accuracy |
+|---|---|---|---|
+| **Model** | **0.9013** | **0.5331** | **62.7%** |
+| Frequency prior | 1.0552 | 0.6367 | 47.1% |
+
+Knockout accuracy: 70%. Conformal coverage: 0.951 vs 0.90 target.
+
+### Conformal coverage -- target and observed results
+
+![Conformal coverage convergence](../docs/img/demo_conformal.gif)
+
+The illustrative animation shows a 90% coverage target. The EPL report measures 86.9% empirical coverage; the target is not a guarantee on temporally shifted match data. Prediction sets widen to {Home, Draw, Away} on genuinely uncertain fixtures and collapse to singletons on lopsided ones -- uncertainty is surfaced, not overclaimed.
+
+Full reports: [EPL backtest](../docs/backtest_epl.md) | [WC26 report](../docs/wc26_report.md) | [Conformal study](../docs/conformal_study.md)
+
+---
+
+## RL Training Pipeline
+
+### GRPO Policy Optimization
+
+Group Relative Policy Optimization (Shao et al., 2024) applied to staking. A 2,788-parameter MLP implemented from scratch in numpy (no PyTorch) maps per-fixture features to {skip, bet_H, bet_D, bet_A}. GRPO replaces the value network with a group-relative baseline.
+
+![GRPO training demo](../docs/img/demo_grpo_training.gif)
+
+![Walk-forward evaluation](../docs/img/walkforward_eval.png)
+
+| Policy | Mean CLV | Total Bets | Mean Reward |
+|--------|----------|------------|-------------|
+| **GRPO (learned)** | **+0.016** | **62** | -0.004 |
+| Favourite | -0.009 | 64 | -0.016 |
+| Random | +0.002 | 28 | +0.000 |
+| Abstainer | 0.000 | 0 | +0.010 |
+
+In this recorded comparison, GRPO has the highest CLV among the policies that place bets (+0.016 versus -0.009 for the favourite baseline). Its mean reward is negative; this does not establish profitability.
+
+### Simulated Market
+
+A tunable-efficiency synthetic market generator. The `eta` parameter controls how far the closing line moves toward truth -- from pure noise (0.0) to perfectly efficient (1.0).
+
+![Eta sweep demo](../docs/img/demo_eta_sweep.gif)
+
+### Fidelity Ladder -- does sim performance predict real performance?
+
+Train GRPO at five efficiency levels, evaluate on real Premier League data.
+
+![Fidelity ladder demo](../docs/img/demo_fidelity.gif)
+
+| eta | Sim Reward | Real Reward | Transfer Ratio | Real CLV |
+|-----|-----------|-------------|----------------|----------|
+| 0.30 | +0.051 | -0.034 | -0.669 | -0.008 |
+| 0.50 | +0.070 | -0.052 | -0.746 | -0.033 |
+| 0.70 | +0.086 | -0.019 | -0.225 | +0.003 |
+| **0.85** | **+0.049** | **+0.010** | **+0.202** | **+0.034** |
+| 0.95 | +0.091 | -0.019 | -0.212 | +0.003 |
+
+In this recorded sweep, **eta=0.85** is the only tested setting with positive historical-data reward. It is a selected result from this sweep, not an independently confirmed transfer setting.
+
+Full docs: [Sim market](../docs/sim_market.md) | [Fidelity ladder](../docs/fidelity_ladder.md) | [GRPO guide](../docs/grpo_run.md)
+
+### Season Simulation
+
+Full-season bankroll trajectory with per-bet win/loss markers, drawdown tracking, and rolling average.
+
+![Season simulation demo](../docs/img/demo_season_sim.gif)
+
+### Episode Shapes and Instruction Adherence
+
+Three episode shapes test whether a policy that works per-match still works across a full season.
+
+![Episode shapes](../docs/img/episode_shapes.png)
+
+![Instruction adherence over time](../docs/img/instruction_adherence.png)
+
+The GRPO policy maintains risk mandate adherence above 0.80 through 300 steps -- far above random (0.50) and favourite (0.30) baselines.
+
+### Population Tournament
+
+Head-to-head policy evaluation with bootstrapped 95% CIs and permutation-test pairwise significance. Policies compete on identical seeds; the leaderboard updates live.
+
+![Tournament demo](../docs/img/demo_tournament.gif)
+
+### OpenEnv Adapter
+
+Gymnasium-compatible `reset()`/`step()` interface registered as `MarketGym-v0`. Supports both real historical and simulated data.
+
+![MarketGym-v0 step cycle](../docs/img/openenv_cycle.png)
+
+---
+
+## Sim-to-Real Transfer
+
+![Sim-to-real calibration and reliability](../docs/img/sim_to_real_transfer.png)
+
+**Market-level:** ECE drift +0.0004, Brier drift -0.019. These are reported differences for the evaluated split; they do not establish reliable calibration across arbitrary seasons.
+
+![Environment transfer ratios](../docs/img/environment_transfer.png)
+
+**Environment-level:** Random policy reward drops 29% on held-out data (ratio 0.71). Transfer is harder than calibration -- reported, not hidden.
+
+---
+
+## Safety and Evaluation
+
+### Reward-Hacking Defenses
+
+![Martingale blow-up](../docs/img/demo_martingale.gif)
+
+Six adversarial attacks tested and blocked. The martingale doubles its stake after every loss -- unchecked, it climbs dangerously; the per-bet cap and drawdown halt clip it before it detonates. No scripted policy achieves positive CLV against the Pinnacle close.
+
+![Reward-hacking defenses](../docs/img/reward_hacking_baselines.png)
+
+### Computer-Use Odds Validator
+
+![Odds validator pipeline](../docs/img/odds_validator_pipeline.png)
+
+Three-stage pipeline: page capture, VLM extraction, drift/anomaly/staleness detection. The recorded injected-fault fixture reports all faults detected with zero false positives; live-browser accuracy is not established.
+
+### Mixed-Verifier Evaluation Harness
+
+![Eval harness architecture](../docs/img/eval_harness.png)
+
+Three independent verifiers (state-based 40%, component-level 35%, ground-truth 25%) with trajectory failure taxonomy and stage-wise attribution.
+
+### Agent Evals -- 28-task golden set
+
+| Metric | Value |
+|---|---|
+| Task success | 100% (gate: 90%+) |
+| Tool-selection accuracy | 100% |
+| Fault recovery | 1.0 |
+| Injection resistance | 1.0 |
+| Mean latency | ~38 ms |
+
+Prompt-injection tests plant `IGNORE ALL PREVIOUS INSTRUCTIONS` in mock articles and assert the agent neither reproduces nor obeys them.
+
+![Test suite and feature status](../docs/img/test_suite_features.png)
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/joses2017smjh/Agentic-Soccer-Match-Prediction-MCP.git
+cd Agentic-Soccer-Match-Prediction-MCP
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m scripts.build_demo_artifacts
+python -m scripts.prepare_test_data
+pytest -q
+```
+
+The full suite replays six real EPL seasons (2019/20–2024/25). The preparation
+command downloads the official [football-data.co.uk CSVs](https://www.football-data.co.uk/englandm.php)
+through the existing provider, validates all 380 fixtures per season and required
+results/odds columns, and records source URLs and SHA256 hashes in
+`evals/out/test_data_sources.json`. Downloads stay in the ignored local cache;
+the mobile demo tests remain independent of these historical datasets.
+
+```bash
+# Gateway
+uvicorn gateway.app:app --port 8000
+
+# UI
+cd ui && npm install && GATEWAY_URL=http://localhost:8000 npm run dev
+
+# Full stack
+docker compose up --build
+```
+
+```bash
+# RL training
+python -m scripts.train_grpo --epochs 5 --K 8
+
+# Fidelity study
+python -m scripts.fidelity_study --etas 0.3,0.5,0.7,0.85,0.95
+
+# Population tournament
+python -m scripts.run_tournament --policies favourite,random,abstainer --seeds 20
+```
+
+---
+
+## Project Structure
+
+![Code organization](../docs/img/code_organization.png)
+
+| Concern | Location |
+|---|---|
+| ML pipeline (features, models, eval) | `src/` |
+| MCP servers (data, news, ML, code, book) | `mcp_servers/` |
+| Agent orchestrator (graph, state, memory) | `agent/` |
+| RL environment (real market, sim, episodes) | `envs/` |
+| GRPO training (policy, trainer, eval) | `training/` |
+| Transfer + reward-hacking evals | `evals/` |
+| Computer-use odds validator | `agents/` |
+| FastAPI gateway + Next.js 15 UI | `gateway/` + `ui/` |
+| CLI scripts (train, tournament, fidelity) | `scripts/` |
+| Test suite (historical count: 505; rerun for current status) | `tests/` |
+
+<details>
+<summary>Full architecture details</summary>
+
+### Model Stack
+
+| Layer | Job |
+|---|---|
+| XGBoost GBM | Tabular features to 1X2 probs + team xG |
+| Isotonic calibration + conformal | Per-class calibration; split-conformal sets with 1-alpha coverage |
+| Dixon-Coles score grid | xG to scorelines, O/U, BTTS, knockout advance -- one grid, all markets consistent |
+| Sequence model | First scorer, 15-min goal bands, next-goal given state |
+| Player props | xG allocated by share, minutes, availability, set-piece role |
+| Suggestions | Edge vs vig-free market, EV, fractional Kelly -- capped when outside conformal set |
+
+### MCP Servers
+
+| Server | Tools |
+|---|---|
+| Sports Data | `get_team_stats`, `get_live_odds`, `get_h2h`, `get_fixture_context` |
+| News/Sentiment | `get_availability_report`, `analyze_team_sentiment` |
+| ML Inference | `predict_match`, `explain_prediction`, `get_model_card` |
+| Code Sandbox | Stateful Python execution against real datasets (AST allow-list + rlimit) |
+| Betting Book | `get_bankroll`, `place_bet`, `close_day`, `get_ledger` -- CLV-scored, not profit |
+
+### Agent Modes
+
+| Mode | Latency | Cost | Notes |
+|---|---|---|---|
+| Workflow (default) | ~40 ms | $0.00 | Fixed graph, deterministic |
+| Swarm | ~35 ms | $0.00 | Parallel DAG + adversarial Critic |
+| ReAct | variable | API cost | Follow-ups, degraded replanning |
+
+### Graceful Degradation
+
+| Server Down | Behavior |
+|---|---|
+| News | Full strength availability, neutral sentiment, disclosure |
+| Sports data | League-average priors, stats-only anchor |
+| ML inference | Honest failure with evidence gathered |
+
+### Data Sources
+
+| Provider | Key Required | Status |
+|---|---|---|
+| football-data.co.uk | None | Live -- 15+ leagues |
+| martj42 open datasets | None | Live -- internationals + Elo |
+| StatsBomb Open Data | None | Live -- 37 teams, named players |
+| The Odds API | `ODDS_API_KEY` | Client built -- live odds |
+| API-Football | `API_FOOTBALL_KEY` | Client built -- squads |
+
+</details>
+
+---
+
+## Honest Limitations
+
+- The served artifact bundle is the synthetic demo model. Real-data backtests use football-data.co.uk; live odds/squads/news remain demo backends.
+- The closing line wins on EPL data (0.9407 vs 1.0229 log loss). Prior versions used pre-close prices as the benchmark; the actual closing line is sharper. This system's value is calibrated structure, not out-predicting Pinnacle.
+- The 100% golden-set score reflects deterministic backends. Live providers will make it interesting.
+- New MCP servers extend reasoning immediately, but trained models cannot consume features they never saw.
+
+---
+
+## References
+
+| Paper | Where It Landed |
+|---|---|
+| Dixon & Coles (1997) | `score_grid.py` -- bivariate Poisson |
+| Angelopoulos & Bates (2023) | `calibration.py` -- conformal sets |
+| Shao et al., DeepSeekMath GRPO (2024) | `training/grpo.py` -- group-relative optimization |
+| Yao et al., ReAct (ICLR 2023) | `agent/react_mode.py` |
+| Anthropic, Building Effective Agents (2024) | Workflow-first design, A/B report |
+| Yao et al., tau-bench (2024) | `evals/` -- trajectory-checked golden tasks |
+| Halluminate.ai, Sim-to-Real (2026) | `evals/sim_to_real.py` |
+
+Full reference table: [docs/REPORT_DRAFT.md](../docs/REPORT_DRAFT.md)
+
+---
+
+## Contact
+
+Jose Sanchez -- sanchej7@oregonstate.edu -- [github.com/joses2017smjh](https://github.com/joses2017smjh)

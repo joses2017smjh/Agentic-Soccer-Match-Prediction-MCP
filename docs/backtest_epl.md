@@ -33,7 +33,7 @@ Source: football-data.co.uk (free), seasons 2019-2020 ... 2024-2025; 1520 scored
 | 2023-2024 |      0.832 |           2.047 | 380 |
 | 2024-2025 |      0.858 |           2.195 | 380 |
 
-Weighted empirical coverage: **0.869** (target 0.90). Coverage materially below target would indicate exchangeability breakdown (temporal drift); at/above target the guarantee holds on real data.
+Weighted empirical coverage: **0.869** (target 0.90). The observed coverage is below the nominal target. This historical evaluation does not establish a coverage guarantee for future seasons.
 
 ## Suggestion-layer ROI (settled at payable closing odds)
 
