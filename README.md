@@ -8,7 +8,7 @@ A Next.js interface and FastAPI gateway connect a LangGraph workflow to soccer-d
 
 *Application demonstration. The served model bundle is trained on synthetic data; odds, squad, and news backends remain demos. Historical backtests below are separate from the hosted experience.*
 
-[Open demo](https://agentic-soccer-match-prediction-mcp.vercel.app) · [Try the fixture API](#try-the-fixture-api) · [Architecture](#how-it-works) · [Engineering reference](docs/engineering-reference.md) · [Agent Field mobile companion](https://github.com/joses2017smjh/MetaNavT/tree/main/mobile)
+[Open demo](https://agentic-soccer-match-prediction-mcp.vercel.app) · [Demo walkthroughs](#demo-walkthroughs) · [Try the fixture API](#try-the-fixture-api) · [Architecture](#how-it-works) · [Engineering reference](docs/engineering-reference.md) · [Agent Field mobile companion](https://github.com/joses2017smjh/MetaNavT/tree/main/mobile)
 
 ## Problem and approach
 
@@ -24,9 +24,23 @@ The implementation brings together the forecasting pipeline, agent orchestration
 - **Evaluate separate layers:** compare historical forecasts with baselines, replay deterministic agent tasks, and test experimental policies in simulated/historical environments.
 - **Serve mobile clients:** use a bounded, read-only adapter with explicit fixture provenance and authenticated live-gateway delegation.
 
+## Demo walkthroughs
+
+### One score grid, related probabilities
+
+[![Illustrated Dixon-Coles score grid and outcome, totals, and both-teams-to-score probabilities changing with the grid parameters](docs/img/demo_grid_morph.gif)](src/models/score_grid.py)
+
+*Parameter-sweep visualization of the shared score grid. It explains how derived probabilities stay connected; it is not a live match forecast or an accuracy result.*
+
+### Inspect the evaluation workflow
+
+[![Demo evaluation interface showing component scores, reward-hacking floor checks, and trajectory-analysis controls](docs/img/demo_evaluation.gif)](docs/engineering-reference.md#mixed-verifier-evaluation-harness)
+
+*Recorded demo interface. The displayed component scores and “reward-hack safe” label describe this demonstration, not a fresh validation or a general robustness guarantee. Historical forecast results and deterministic agent tests are separate evaluations.*
+
 ## Evidence and limits
 
-The published EPL walk-forward report evaluates **1,520 matches across four folds**. Lower log loss is better:
+**Evidence checked October 14, 2026.** The latest committed EPL walk-forward report evaluates **1,520 matches across four folds**, using the 2019/20–2024/25 source seasons. This documentation refresh does not rerun the backtest. Lower log loss is better:
 
 | Forecaster | Log loss |
 | --- | ---: |
@@ -37,6 +51,8 @@ The published EPL walk-forward report evaluates **1,520 matches across four fold
 The model improves on the naive baseline and trails the closing market. Empirical conformal coverage is **86.9% against a 90% target**. These results support a bounded historical comparison, not a claim of profitable forecasting or guaranteed future coverage. [Protocol, folds, and results](docs/backtest_epl.md).
 
 The golden agent tasks use deterministic backends. Their published success and latency numbers do not establish live-provider reliability. RL transfer experiments, historical reports, and fixture visualizations remain in the [engineering reference](docs/engineering-reference.md); the hosted synthetic model is not their deployment result.
+
+The separate [adaptive-conformal study](docs/conformal_study.md) records a different static baseline from the report above. Its adaptive-coverage numbers are not substituted for the main model's measured **86.9%** coverage or presented as the hosted configuration.
 
 ## How it works
 
