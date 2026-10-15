@@ -32,6 +32,7 @@ from src.models.score_grid import (
     fit_rho,
     knockout_advance,
     outcome_probs,
+    round_probs,
     score_grid,
     top_scorelines,
 )
@@ -154,20 +155,21 @@ def predict_tie(
     grid = score_grid(mu_h, mu_a, rho)
     advance = knockout_advance(mu_h, mu_a, rho)
     winner = home if advance["home"] >= advance["away"] else away
+    shown_advance = round_probs(advance)
 
     return {
         "home": home.team, "away": away.team,
         "seeds": {"home": home.rank, "away": away.rank},
         "expected_goals": {"home": round(mu_h, 2), "away": round(mu_a, 2)},
-        "outcome_90": {k: round(v, 3) for k, v in outcome_probs(grid).items()},
-        "advance": {home.team: round(advance["home"], 3),
-                    away.team: round(advance["away"], 3)},
+        "outcome_90": round_probs(outcome_probs(grid)),
+        "advance": {home.team: shown_advance["home"],
+                    away.team: shown_advance["away"]},
         "projected_winner": winner.team,
         "top_scorelines": [{"score": s["score"], "prob": round(s["prob"], 3)}
                            for s in top_scorelines(grid, 4)],
         "goal_timing_bands": timing.expected_goals_by_band(mu_h, mu_a),
-        "first_scorer": {k: round(v, 3) for k, v in
-                         timing.first_scorer(mu_h, mu_a, float(grid[0, 0])).items()},
+        "first_scorer": round_probs(
+            timing.first_scorer(mu_h, mu_a, float(grid[0, 0]))),
         "headline_scenario": _scenario(mu_h, mu_a, grid, timing,
                                        home.team, away.team, advance),
         "evidence": {

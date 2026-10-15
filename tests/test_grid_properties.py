@@ -16,6 +16,7 @@ from src.models.score_grid import (
     knockout_advance,
     outcome_probs,
     over_under,
+    round_probs,
     score_grid,
 )
 from src.models.sequence import GoalTimingModel
@@ -61,3 +62,25 @@ def test_sequence_and_knockout_share_the_grid(mu_h, mu_a, rho) -> None:
     assert adv["home"] + adv["away"] == pytest.approx(1.0, abs=1e-9)
     # advancing can never be less likely than winning in 90 minutes
     assert adv["home"] >= outcome_probs(grid)["home"] - 1e-9
+
+
+@pytest.mark.parametrize("probs", [
+    {"home": 0.4446, "draw": 0.2777, "away": 0.2777},   # each rounds up: 1.001
+    {"home": 0.3334, "draw": 0.3333, "away": 0.3333},   # each rounds down: 0.999
+])
+def test_round_probs_keeps_the_sum(probs) -> None:
+    naive = sum(round(v, 3) for v in probs.values())
+    assert naive != pytest.approx(1.0, abs=1e-6)   # the bug this guards against
+    shown = round_probs(probs)
+    assert sum(shown.values()) == pytest.approx(1.0, abs=1e-9)
+    for k, v in probs.items():
+        assert abs(shown[k] - v) < 1e-3
+        assert shown[k] == round(shown[k], 3)
+
+
+@pytest.mark.parametrize("mu_h,mu_a,rho", CASES)
+def test_shown_markets_sum_to_one(mu_h, mu_a, rho) -> None:
+    grid = score_grid(mu_h, mu_a, rho)
+    fs = GoalTimingModel().first_scorer(mu_h, mu_a, p_zero_zero=float(grid[0, 0]))
+    for dist in (outcome_probs(grid), knockout_advance(mu_h, mu_a, rho), fs):
+        assert sum(round_probs(dist).values()) == pytest.approx(1.0, abs=1e-9)
