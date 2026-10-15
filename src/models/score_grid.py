@@ -11,6 +11,8 @@ artifact.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.stats import poisson
@@ -70,6 +72,22 @@ def outcome_probs(grid: np.ndarray) -> dict[str, float]:
     away = float(np.triu(grid, 1).sum())    # j > i
     draw = float(np.trace(grid))
     return {"home": home, "draw": draw, "away": away}
+
+
+def round_probs(probs: dict[str, float], ndigits: int = 3) -> dict[str, float]:
+    """Round a probability distribution for display without breaking its sum.
+
+    Rounding each value on its own can show 0.999 or 1.001 for a distribution
+    that sums to 1. Largest-remainder rounding keeps the rounded values summing
+    to the rounded total, and moves no value by more than one unit.
+    """
+    scale = 10 ** ndigits
+    scaled = {k: v * scale for k, v in probs.items()}
+    units = {k: math.floor(v) for k, v in scaled.items()}
+    short = round(sum(scaled.values())) - sum(units.values())
+    for k in sorted(scaled, key=lambda k: scaled[k] - units[k], reverse=True)[:short]:
+        units[k] += 1
+    return {k: units[k] / scale for k in probs}
 
 
 def top_scorelines(grid: np.ndarray, n: int = 5) -> list[dict]:
