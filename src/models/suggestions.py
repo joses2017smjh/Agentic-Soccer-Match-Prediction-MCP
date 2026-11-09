@@ -109,6 +109,7 @@ def make_suggestions(
         capped = False
         if (
             flagged
+            and tier != "none"   # a cap only ever lowers; never promote to "low"
             and q.market == "h2h"
             and h2h_conformal_set is not None
             and q.selection not in h2h_conformal_set

@@ -20,6 +20,7 @@ Auth: set GATEWAY_API_KEY to require X-API-Key on every non-health route.
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import time
@@ -35,6 +36,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from agent.checkpoint import make_checkpointer
 from agent.events import EventBus
 from agent.graph import build_graph
 from agent.memory import PredictionMemory
@@ -44,12 +46,41 @@ from agent.tracing import record_trace
 
 app = FastAPI(title="soccer-prediction-gateway", version="0.1.0")
 
+def _has_valid_key(supplied: str | None) -> bool:
+    expected = os.environ.get("GATEWAY_API_KEY")
+    if not expected or not supplied:
+        return False
+    # bytes, not str: compare_digest raises on non-ASCII text, which would
+    # turn a malformed key into a 500 instead of a 401
+    return hmac.compare_digest(supplied.encode(), expected.encode())
+
+
+def client_key(request: Request) -> str:
+    """Who a request is counted against for rate limiting.
+
+    Browser traffic arrives through the UI's server-side proxy, so the
+    network address is the proxy's for every user. The proxy names the real
+    client in X-Client-Address. That header is honoured ONLY on requests
+    carrying the API key (the proof they come from the proxy); from anyone
+    else it is attacker-controlled and would mint a fresh bucket per
+    request. No key configured means no trusted proxy, so it is ignored.
+
+    The value is only as trustworthy as the proxy's own source for it --
+    ui/lib/gateway.ts documents what the UI relies on.
+    """
+    if _has_valid_key(request.headers.get("x-api-key")):
+        client = request.headers.get("x-client-address", "").strip()
+        if client:
+            return client[:64]
+    return get_remote_address(request)
+
+
 # rate limiting: strict on the prediction endpoints (each request drives a
 # full agent run). In-memory storage for local dev; set REDIS_URL for a
 # shared counter across gateway replicas.
 PREDICT_RATE_LIMIT = os.environ.get("PREDICT_RATE_LIMIT", "5/minute")
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=client_key,
     storage_uri=os.environ.get("REDIS_URL", "memory://"),
 )
 app.state.limiter = limiter
@@ -66,9 +97,13 @@ def _make_runner():
 
 
 _runner = _make_runner()
+# Paused approvals live in this saver. CHECKPOINT_URL picks the backend
+# (memory by default; sqlite:///path survives restarts) -- agent/checkpoint.py.
+_checkpointer = make_checkpointer()
 _graph = build_graph(
     _runner,
     ev_threshold=float(os.environ.get("EV_THRESHOLD", "0.03")),
+    checkpointer=_checkpointer,
 )
 # the cognitive-swarm mode shares the same MCP tooling; toggled per request
 # or globally with AGENT_MODE. Built lazily so a workflow-only deploy pays
@@ -81,7 +116,7 @@ def _swarm_graph():
     if _swarm is None:
         from agent.swarm.supervisor import build_swarm
 
-        _swarm = build_swarm(_runner)
+        _swarm = build_swarm(_runner, checkpointer=_checkpointer)
     return _swarm
 
 
@@ -92,8 +127,8 @@ _memory = PredictionMemory(
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
-    expected = os.environ.get("GATEWAY_API_KEY")
-    if expected and x_api_key != expected:
+    # constant-time comparison; open only when no key is configured
+    if os.environ.get("GATEWAY_API_KEY") and not _has_valid_key(x_api_key):
         raise HTTPException(status_code=401, detail="invalid or missing API key")
 
 
@@ -119,8 +154,10 @@ class ReflectIn(BaseModel):
     actual: str = Field(..., pattern="^(home|draw|away)$")
 
 
-def _config(thread_id: str) -> dict:
-    return {"configurable": {"thread_id": thread_id}}
+def _config(thread_id: str, mode: str = "workflow") -> dict:
+    # both graphs share one saver, so swarm runs get their own key space
+    key = thread_id if mode == "workflow" else f"{mode}:{thread_id}"
+    return {"configurable": {"thread_id": key}}
 
 
 def _payload(result: dict[str, Any], thread_id: str) -> dict[str, Any]:
@@ -312,7 +349,7 @@ def predict(request: Request, body: PredictIn) -> dict[str, Any]:
 
             result = _swarm_graph().invoke(
                 SwarmState(request=ParsedRequest(raw_text=body.text)),
-                config=_config(thread_id),
+                config=_config(thread_id, "swarm"),
             )
         else:
             result = _graph.invoke(
@@ -329,8 +366,17 @@ def approve(body: ApproveIn) -> dict[str, Any]:
     resume: dict[str, Any] = {"action": body.action}
     if body.suggestions is not None:
         resume["suggestions"] = body.suggestions
+    config = _config(body.thread_id)
+    if "approve" not in _graph.get_state(config).next:
+        # unknown id, already resolved, or lost with an in-memory saver on restart
+        raise HTTPException(
+            status_code=404,
+            detail="no run is waiting for approval under this thread_id; it may "
+                   "have been resolved already or lost in a restart "
+                   "(set CHECKPOINT_URL to keep paused runs across restarts)",
+        )
     start = time.monotonic()
-    result = _graph.invoke(Command(resume=resume), config=_config(body.thread_id))
+    result = _graph.invoke(Command(resume=resume), config=config)
     return _traced(result, body.thread_id, (time.monotonic() - start) * 1000)
 
 

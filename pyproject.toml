@@ -29,6 +29,8 @@ dependencies = [
 dev = ["pytest>=8.2", "ruff>=0.5", "mypy>=1.10", "matplotlib>=3.8"]
 sentiment = ["torch>=2.3", "transformers>=4.42"]
 llm = ["langchain-anthropic>=0.3", "anthropic>=0.50"]
+# durable approval state: CHECKPOINT_URL=sqlite:///path (agent/checkpoint.py)
+durable = ["langgraph-checkpoint-sqlite>=3.1"]
 
 [tool.ruff]
 line-length = 100

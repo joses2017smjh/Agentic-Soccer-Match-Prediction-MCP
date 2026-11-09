@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from langgraph.checkpoint.memory import MemorySaver
+from agent.checkpoint import make_checkpointer
 from langgraph.graph import END, START, StateGraph
 
 from agent.events import EventBus
@@ -167,4 +167,4 @@ def build_swarm(
     g.add_edge("replan", "execute")
     g.add_edge("synthesize", "commit")
     g.add_edge("commit", END)
-    return g.compile(checkpointer=checkpointer or MemorySaver())
+    return g.compile(checkpointer=checkpointer or make_checkpointer("memory://"))

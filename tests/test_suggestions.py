@@ -71,3 +71,37 @@ def test_flagged_sort_first_by_ev() -> None:
         _quote(p_model=0.55, p_market=0.40, sel="away"), # flagged, big ev
     ])
     assert [s.selection for s in out] == ["away", "draw", "home"]
+
+
+# --- the conformal cap may only ever lower a tier ---------------------------
+
+_RANK = {"none": 0, "low": 1, "medium": 2, "high": 3}
+
+
+def test_cap_does_not_raise_a_tier_that_was_below_low() -> None:
+    """Edge 0 with generous payable odds: flagged on EV, tier 'none'. Falling
+    outside the conformal set must not promote it to 'low'."""
+    quote = _quote(p_model=0.50, p_market=0.50, odds=2.20, sel="away")
+    (inside,) = make_suggestions([quote], h2h_conformal_set=["home", "away"])
+    (outside,) = make_suggestions([quote], h2h_conformal_set=["home", "draw"])
+    assert inside.flagged and inside.tier == "none"
+    assert outside.flagged and outside.tier == "none"
+    assert "Confidence capped" not in outside.rationale      # nothing was capped
+
+
+def test_cap_never_increases_confidence_property() -> None:
+    import numpy as np
+
+    rng = np.random.default_rng(20261109)
+    for _ in range(2000):
+        p, q = rng.uniform(0.03, 0.95, size=2)
+        odds = float(rng.uniform(1.05, 12.0))
+        quote = _quote(p_model=float(p), p_market=float(q), odds=odds, sel="away")
+        (free,) = make_suggestions([quote], h2h_conformal_set=["home", "draw", "away"])
+        (capped,) = make_suggestions([quote], h2h_conformal_set=["home", "draw"])
+        assert _RANK[capped.tier] <= _RANK[free.tier]
+        assert _RANK[capped.tier] <= _RANK["low"]
+        # the cap changes the label only: flag, EV and stake are untouched
+        assert (capped.flagged, capped.ev, capped.kelly_stake) == (free.flagged, free.ev, free.kelly_stake)
+        # the note appears exactly when there was a tier to cap (unchanged for low/medium/high)
+        assert ("Confidence capped" in capped.rationale) == (free.tier != "none")

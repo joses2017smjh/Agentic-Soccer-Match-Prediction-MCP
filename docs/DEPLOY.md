@@ -28,6 +28,8 @@ own `/api/*` Route Handlers, which proxy to the gateway server-side and attach
 | `DATA_BACKEND` | gateway | `demo` (default) or `football_data` (real stats) |
 | `ANTHROPIC_API_KEY` | gateway | optional; enables ReAct mode + LLM judge |
 | `REDIS_URL` | gateway | optional; shared rate-limit store across replicas |
+| `CHECKPOINT_URL` | gateway | optional; `sqlite:///path` keeps paused approvals across a restart on one host with a persistent local disk. Unset = memory. Not for the free Render plan (no persistent disk) or for replicas on separate hosts |
+| `MODEL_THREADS` | gateway, ML server | native threads per model call, default `1`; raise for batch training |
 
 Generate a key with `openssl rand -hex 16`.
 

@@ -32,7 +32,8 @@ from src.data.football_data_uk import load_seasons
 from src.eval.backtest import OUTCOME_ORDER, run_backtest, simulate_roi
 from src.models.calibration import ConformalWrapper, IsotonicCalibrator
 from src.models.gbm import OutcomeGBM
-from src.features.team_form import FORM_STATS, match_level_form, team_form_features
+from src.features.team_form import FORM_STATS
+from src.pipeline.stages import assemble_match_dataset
 
 SEASONS = [2019, 2020, 2021, 2022, 2023, 2024]
 ALPHA = 0.10
@@ -56,29 +57,11 @@ def _log_margin(df: pd.DataFrame, cols: tuple[str, ...]) -> np.ndarray:
 
 def build_dataset() -> tuple[pd.DataFrame, pd.Series]:
     team_matches, pre_close, close = load_seasons("E0", SEASONS)
-    form = team_form_features(team_matches, window=10, half_life=5.0)
-    matches = match_level_form(form)
-
-    home_rows = (
-        team_matches[team_matches["is_home"]]
-        .set_index("match_id")[["goals_for", "goals_against"]]
+    # one implementation of "frames -> match dataset", shared with the staged
+    # pipeline (python -m src.pipeline.run), which adds gates and a manifest
+    matches = assemble_match_dataset(
+        team_matches, pre_close, close, form_window=10, form_half_life=5.0
     )
-    matches = matches.merge(
-        home_rows, left_on="match_id", right_index=True, how="inner"
-    )
-
-    matches = matches.merge(pre_close, on="match_id", how="inner")
-
-    close_renamed = close.rename(columns={
-        "odds_home": "close_odds_home",
-        "odds_draw": "close_odds_draw",
-        "odds_away": "close_odds_away",
-        "odds_imp_home": "close_imp_home",
-        "odds_imp_draw": "close_imp_draw",
-        "odds_imp_away": "close_imp_away",
-    })[["match_id", "close_odds_home", "close_odds_draw", "close_odds_away",
-        "close_imp_home", "close_imp_draw", "close_imp_away"]]
-    matches = matches.merge(close_renamed, on="match_id", how="inner")
 
     y = pd.Series(
         np.where(matches["goals_for"] > matches["goals_against"], "home",
