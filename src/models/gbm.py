@@ -75,6 +75,11 @@ class OutcomeGBM:
         self._model.fit(x, codes, **fit_kw)
         return self
 
+    def booster(self) -> xgb.Booster:
+        """The fitted booster, for callers that need TreeSHAP contributions."""
+        assert self._model is not None, "call fit() or load() first"
+        return self._model.get_booster()
+
     def predict_proba(
         self, x: pd.DataFrame, base_margin: np.ndarray | None = None,
     ) -> np.ndarray:

@@ -14,10 +14,8 @@ returning a structured diff against the baseline.
 
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass, field
 
-import numpy as np
 
 from src.models.score_grid import outcome_probs, score_grid
 

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langgraph.checkpoint.memory import MemorySaver
+from agent.checkpoint import make_checkpointer
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
@@ -222,4 +222,4 @@ def build_graph(runner: ToolRunner, *, ev_threshold: float = 0.03,
     graph.add_edge("infer", "approve")
     graph.add_edge("approve", "synthesize")
     graph.add_edge("synthesize", END)
-    return graph.compile(checkpointer=checkpointer or MemorySaver())
+    return graph.compile(checkpointer=checkpointer or make_checkpointer("memory://"))

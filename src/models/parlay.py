@@ -23,7 +23,7 @@ making the correlation adjustment a directly measurable, auditable quantity.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -260,7 +260,6 @@ def price_parlay(
         grid = grids[leg.match_id]
         n = grid.shape[0]
         if leg.leg_type == "anytime_scorer":
-            mu_team = mus[leg.match_id][0 if leg.team_side == "home" else 1]
             # marginal = sum over cells of grid[i,j] * P(scorer | goals)
             marginal = 0.0
             for i in range(n):

@@ -1,0 +1,8 @@
+# The image installs its own dependencies with `npm ci`. Without this file,
+# `COPY . .` would copy a local node_modules over them (wrong platform, and
+# whatever versions happen to be installed on the build machine).
+node_modules/
+.next/
+out/
+.env*.local
+*.tsbuildinfo

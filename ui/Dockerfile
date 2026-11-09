@@ -1,8 +1,10 @@
 # Two-stage build → small standalone runtime.
 FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package.json ./
-RUN npm install --no-audit --no-fund
+# `npm ci` installs exactly what package-lock.json pins and fails if the lock
+# and package.json disagree, so a dependency bump cannot be half-applied
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 

@@ -40,7 +40,7 @@ def _block_network() -> None:
     def _denied(*_args, **_kwargs):
         raise PermissionError("network access is disabled in the sandbox")
 
-    socket.socket = _denied            # type: ignore[assignment]
+    socket.socket = _denied            # type: ignore[assignment,misc]
     socket.create_connection = _denied  # type: ignore[assignment]
     socket.getaddrinfo = _denied        # type: ignore[assignment]
 

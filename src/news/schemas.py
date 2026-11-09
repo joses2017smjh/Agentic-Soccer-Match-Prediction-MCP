@@ -30,7 +30,7 @@ def sanitize_text(raw: str, max_chars: int = 4000) -> str:
     text = _TAG_RE.sub(" ", raw)
     text = "".join(
         ch for ch in text
-        if unicodedata.category(ch)[0] != "C" and ch not in "​‌‍⁠﻿"
+        if unicodedata.category(ch)[0] != "C" and ch not in "\u200b\u200c\u200d\u2060\ufeff"
     )
     return _WS_RE.sub(" ", text).strip()[:max_chars]
 

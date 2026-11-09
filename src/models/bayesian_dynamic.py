@@ -20,8 +20,12 @@ Key design decisions:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 @dataclass
@@ -163,7 +167,6 @@ class BayesianDynamic:
         Expected columns: date, home_team, away_team, home_score,
         away_score, neutral (optional).
         """
-        import pandas as pd
         results = results.sort_values("date")
         prev_date = ""
         for r in results.itertuples(index=False):
@@ -178,9 +181,9 @@ class BayesianDynamic:
             )
         return self
 
-    def team_rankings(self, top_n: int | None = None) -> list[dict]:
+    def team_rankings(self, top_n: int | None = None) -> list[dict[str, Any]]:
         """Rank teams by attack - defense (net strength)."""
-        rankings = []
+        rankings: list[dict[str, Any]] = []
         for team, s in self._teams.items():
             rankings.append({
                 "team": team,

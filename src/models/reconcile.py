@@ -9,7 +9,8 @@ and blend them.
 
 from __future__ import annotations
 
-import numpy as np
+from typing import Any
+
 
 from src.models.score_grid import outcome_probs, score_grid
 
@@ -29,7 +30,7 @@ def reconcile(
     rho: float = -0.1,
     epsilon: float = 0.05,
     blend_weight: float = 0.5,
-) -> dict[str, float | list]:
+) -> dict[str, Any]:
     """Cross-check the direct head against the grid-derived outcome.
 
     Returns:

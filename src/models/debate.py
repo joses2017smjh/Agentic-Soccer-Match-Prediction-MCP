@@ -94,7 +94,7 @@ def statistical_skeptic(
 
     max_prob = max(model_probs.values())
     if max_prob > max_prob_threshold:
-        winner = max(model_probs, key=model_probs.get)
+        winner = max(model_probs, key=lambda k: model_probs[k])
         points.append(
             f"overconfidence: {winner} at {max_prob:.1%} exceeds {max_prob_threshold:.0%}"
         )

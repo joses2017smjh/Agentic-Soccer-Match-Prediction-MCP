@@ -192,7 +192,6 @@ class OddsExtractor:
     """
 
     def extract(self, page: CapturedPage) -> list[ExtractedOdds]:
-        import json
 
         if page.content_type == "application/json":
             return self._from_json(page)

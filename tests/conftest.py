@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import src  # noqa: F401  -- first on purpose: caps native threads before pandas/xgboost load
+
 import pandas as pd
 import pytest
 

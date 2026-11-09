@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from evals.sim_to_real import (
-    CalibrationSnapshot,
     _calibration_snapshot,
     _fixtures_to_arrays,
     measure_market_transfer,

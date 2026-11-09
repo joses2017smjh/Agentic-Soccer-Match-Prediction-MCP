@@ -275,7 +275,7 @@ def test_graph_wraps_nodes_with_events() -> None:
     bus = EventBus("t-graph")
     runner = InProcessRunner(event_bus=bus)
     graph = build_graph(runner, event_bus=bus)
-    result = graph.invoke(
+    graph.invoke(
         {"request": {"raw_text": "Arsenal vs Chelsea"}},
         config={"configurable": {"thread_id": "test-graph-events"}},
     )
@@ -422,7 +422,7 @@ def test_swarm_supervisor_accepts_event_bus() -> None:
     bus = EventBus("t-swarm")
     runner = InProcessRunner(event_bus=bus)
     graph = build_swarm(runner, event_bus=bus)
-    result = graph.invoke(
+    graph.invoke(
         {"request": {"raw_text": "Arsenal vs Chelsea"}},
         config={"configurable": {"thread_id": "test-swarm-events"}},
     )

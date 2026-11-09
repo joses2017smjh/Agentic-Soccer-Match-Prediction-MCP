@@ -53,6 +53,7 @@ services:
       # ANTHROPIC_API_KEY: ...               # enables ReAct mode + LLM judge
       PREDICT_RATE_LIMIT: 5/minute           # per-IP limit on agent-driving routes
       # REDIS_URL: redis://redis:6379        # shared limiter across replicas
+      # CHECKPOINT_URL: sqlite:////data/runs.db  # paused approvals survive a restart; needs a local volume at /data
     ports: ["8000:8000"]
     depends_on: [data-server, news-server, ml-server, code-server]
 

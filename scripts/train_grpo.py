@@ -8,11 +8,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 
 from pathlib import Path
 
-import numpy as np
 
 from envs.real_market import load_season, iter_gameweeks
 from training.evaluate import (

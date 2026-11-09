@@ -5,10 +5,18 @@ on:
     branches: [main]
   pull_request:
 
+# a newer push to the same branch makes the older run pointless
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Tests on both supported Python versions, installed from the lockfile so
+  # CI runs the same dependency versions the image ships.
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.13"]
     steps:
@@ -20,11 +28,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install
+          cache-dependency-path: requirements-dev.lock
+      - name: Install from the lockfile
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" langgraph langchain-mcp-adapters mcp \
-            fastapi uvicorn httpx
+          pip install -r requirements-dev.lock
+          pip install --no-deps -e .
+      # Lint and types run once, on the version the lock was measured with.
+      # Rule set and scope are pinned in pyproject.toml.
+      - name: Lint (correctness rules)
+        if: matrix.python-version == '3.13'
+        run: ruff check .
+      - name: Type-check
+        if: matrix.python-version == '3.13'
+        run: mypy
       - name: Build demo artifacts
         run: python -m scripts.build_demo_artifacts
       - name: Prepare real historical test data
@@ -41,3 +58,52 @@ jobs:
         with:
           name: eval-reports-py${{ matrix.python-version }}
           path: evals/out/
+
+  # A dependency change in pyproject.toml must come with regenerated locks.
+  lockfiles:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: pip install uv==0.13.7
+      - name: Lockfiles match pyproject.toml
+        run: |
+          uv pip compile pyproject.toml --extra durable --universal --python-version 3.11 -o requirements.lock -q
+          uv pip compile pyproject.toml --extra durable --extra dev --universal --python-version 3.11 -c requirements.lock -o requirements-dev.lock -q
+          git diff --exit-code -- requirements.lock requirements-dev.lock
+
+  # Build the images that get deployed and exercise the gateway one for real.
+  images:
+    runs-on: ubuntu-latest
+    env:
+      BASE: http://localhost:8000
+      KEY: ci-smoke-key
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the gateway image
+        run: docker build -t gateway:ci .
+      - name: Start the gateway (paused approvals on a mounted disk)
+        run: |
+          mkdir -p ci-data
+          docker run -d --name gateway -p 8000:8000 \
+            -e GATEWAY_API_KEY="$KEY" -e PREDICT_RATE_LIMIT=100/minute \
+            -e CHECKPOINT_URL=sqlite:////data/runs.db -v "$PWD/ci-data:/data" \
+            gateway:ci
+      - name: Wait for the gateway
+        run: curl -fsS --retry 40 --retry-delay 2 --retry-all-errors "$BASE/health"
+      - name: Smoke test (14 checks against the running container)
+        run: bash scripts/smoke_test.sh
+      - name: A paused approval survives a container restart
+        run: |
+          bash scripts/smoke_restart.sh pause
+          docker restart gateway
+          curl -fsS --retry 40 --retry-delay 2 --retry-all-errors "$BASE/health"
+          bash scripts/smoke_restart.sh resume
+      - name: Gateway logs
+        if: always()
+        run: docker logs gateway
+      - name: Build the UI image (npm ci + next build)
+        run: docker build -t ui:ci ./ui

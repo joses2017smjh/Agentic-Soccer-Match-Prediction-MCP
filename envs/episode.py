@@ -19,9 +19,7 @@ from typing import Any
 
 from envs.market_env import EpisodeResult, Policy, run_episode
 from envs.real_market import Fixture, Gameweek, iter_gameweeks
-from envs.reward import compute_episode_reward
 from mcp_servers.book_server.limits import LimitConfig
-from mcp_servers.book_server.state import BookState
 
 
 class EpisodeShape(str, Enum):

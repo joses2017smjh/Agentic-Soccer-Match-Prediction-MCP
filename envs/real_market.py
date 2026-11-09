@@ -8,7 +8,7 @@ from Pinnacle (fallback Bet365) are both available per match.
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterator

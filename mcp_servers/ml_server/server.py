@@ -94,7 +94,7 @@ def run_explain(match_id: str, top_k: int = 5) -> dict[str, Any]:
             f"no prediction stored for {match_id!r}; call predict_match first"
         )
     bundle = get_bundle()
-    booster = bundle.outcome._model.get_booster()  # noqa: SLF001
+    booster = bundle.outcome.booster()
     row: pd.DataFrame = stored["row"]
     contribs = booster.predict(
         xgb.DMatrix(row, feature_names=list(row.columns)), pred_contribs=True

@@ -63,7 +63,7 @@ class DisagreementBoard:
             for k in ("home", "draw", "away")
         }
         abs_diffs = {k: abs(v) for k, v in diffs.items()}
-        max_key = max(abs_diffs, key=abs_diffs.get)
+        max_key = max(abs_diffs, key=lambda k: abs_diffs[k])
 
         entry = DisagreementEntry(
             match_id=match_id,
@@ -92,7 +92,6 @@ class DisagreementBoard:
         entry.actual_outcome = actual_outcome
         self._resolved_count += 1
 
-        outcome_idx = OUTCOME_MAP.get(actual_outcome, 0)
         model_p = max(entry.model_probs.get(actual_outcome, 0), 1e-12)
         market_p = max(entry.market_probs.get(actual_outcome, 0), 1e-12)
 

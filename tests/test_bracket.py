@@ -10,7 +10,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from src.models.bracket import ROLE_LINEUP, SEED_ORDER_16, rank_teams, simulate_bracket
+from src.models.bracket import ROLE_LINEUP, simulate_bracket
 from src.models.ratings import compute_elo, rank_by_elo
 
 

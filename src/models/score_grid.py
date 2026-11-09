@@ -12,6 +12,7 @@ artifact.
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import numpy as np
 from scipy.optimize import minimize_scalar
@@ -90,8 +91,8 @@ def round_probs(probs: dict[str, float], ndigits: int = 3) -> dict[str, float]:
     return {k: units[k] / scale for k in probs}
 
 
-def top_scorelines(grid: np.ndarray, n: int = 5) -> list[dict]:
-    flat = [
+def top_scorelines(grid: np.ndarray, n: int = 5) -> list[dict[str, Any]]:
+    flat: list[dict[str, Any]] = [
         {"score": f"{i}-{j}", "prob": float(grid[i, j])}
         for i in range(grid.shape[0]) for j in range(grid.shape[1])
     ]

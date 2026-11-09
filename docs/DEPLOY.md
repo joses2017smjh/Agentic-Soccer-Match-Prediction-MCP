@@ -28,6 +28,8 @@ own `/api/*` Route Handlers, which proxy to the gateway server-side and attach
 | `DATA_BACKEND` | gateway | `demo` (default) or `football_data` (real stats) |
 | `ANTHROPIC_API_KEY` | gateway | optional; enables ReAct mode + LLM judge |
 | `REDIS_URL` | gateway | optional; shared rate-limit store across replicas |
+| `CHECKPOINT_URL` | gateway | optional; `sqlite:///path` keeps paused approvals across a restart on one host with a persistent local disk. Unset = memory. Not for the free Render plan (no persistent disk) or for replicas on separate hosts |
+| `MODEL_THREADS` | gateway, ML server | native threads per model call, default `1`; raise for batch training |
 
 Generate a key with `openssl rand -hex 16`.
 
@@ -175,6 +177,33 @@ scoreline grid + headline scenario + evidence trail), the HITL interrupt on a
 value-bet request, approval resume, the 422 on unparseable input, and the
 reflection + calibration loop. 14 checks; exit code is nonzero on any failure,
 so it works as a post-deploy gate.
+
+## Dependency lockfiles
+
+Every image and every CI run installs pinned versions, so two builds of the
+same commit get the same dependencies.
+
+| file | used by | holds |
+|---|---|---|
+| `requirements.lock` | root `Dockerfile` | runtime dependencies + the `durable` extra |
+| `requirements-dev.lock` | CI test job | the above + test, lint and type-check tools |
+| `ui/package-lock.json` | `ui/Dockerfile` (`npm ci`) | the UI's dependencies |
+
+The Python locks are universal: one file covers Python 3.11 and 3.13, with a
+separate set of pins where a library dropped 3.11 (numpy, scipy, xgboost).
+
+After changing dependencies in `pyproject.toml`, regenerate both (needs
+[uv](https://docs.astral.sh/uv/); existing pins are kept unless you add
+`--upgrade`):
+
+```bash
+uv pip compile pyproject.toml --extra durable --universal --python-version 3.11 -o requirements.lock
+uv pip compile pyproject.toml --extra durable --extra dev --universal --python-version 3.11 -c requirements.lock -o requirements-dev.lock
+```
+
+After changing `ui/package.json`, run `npm install` in `ui/` and commit the
+updated `package-lock.json` with it. `npm ci` refuses to build when the two
+disagree, and CI checks the Python locks the same way.
 
 ## Notes for a public deploy
 
