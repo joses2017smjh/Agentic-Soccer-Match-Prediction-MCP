@@ -3,6 +3,14 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# Dependencies first, from the lockfile: every build installs the same
+# versions, and this layer is reused until the lockfile changes. The lock
+# includes the [durable] extra (the SQLite checkpointer behind
+# CHECKPOINT_URL=sqlite:///..., so paused approvals can survive a restart).
+# Regenerate: see the header of requirements.lock.
+COPY requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
+
 COPY pyproject.toml README.md ./
 COPY src ./src
 COPY mcp_servers ./mcp_servers
@@ -14,10 +22,8 @@ COPY configs ./configs
 # deployed API silently falls back to role-level players instead of names
 COPY data/artifacts/player_shares.json ./data/artifacts/
 
-# [durable] adds the SQLite checkpointer, so CHECKPOINT_URL=sqlite:///...
-# (paused approvals that survive a restart) works in the image
-RUN pip install --no-cache-dir -e ".[durable]" \
-    langgraph langchain-mcp-adapters mcp fastapi uvicorn httpx
+# the project itself; its dependencies are already installed and pinned
+RUN pip install --no-cache-dir --no-deps -e .
 
 # demo artifacts baked in so `docker compose up` works with zero setup;
 # mount /app/data/artifacts to serve real trained bundles instead
