@@ -23,13 +23,13 @@ trustworthy than one that claims 1.0 without measurement.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from envs.real_market import Fixture, Gameweek, iter_gameweeks, load_season
+from envs.real_market import Fixture, iter_gameweeks, load_season
 from src.eval.metrics import (
     brier,
     expected_calibration_error,

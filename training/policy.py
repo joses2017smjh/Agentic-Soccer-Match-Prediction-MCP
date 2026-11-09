@@ -10,7 +10,6 @@ over actions.  Weights are updated via REINFORCE gradients computed by
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 import numpy as np

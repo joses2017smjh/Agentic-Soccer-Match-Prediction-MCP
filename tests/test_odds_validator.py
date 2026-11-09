@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-import numpy as np
-import pytest
 
 from agents.odds_validator import (
     CapturedPage,
@@ -14,7 +12,6 @@ from agents.odds_validator import (
     OddsExtractor,
     OddsValidationAgent,
     OddsValidator,
-    ValidationReport,
 )
 from envs.real_market import Fixture
 

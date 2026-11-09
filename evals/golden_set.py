@@ -17,7 +17,7 @@ exact sets rather than fuzzy matches.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 FULL_TOOLSET = {
     "get_fixture_context", "get_live_odds", "get_team_stats",

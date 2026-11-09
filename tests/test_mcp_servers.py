@@ -7,7 +7,6 @@ that every expected tool is exposed with a docstring.
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 import scripts.build_demo_artifacts as demo

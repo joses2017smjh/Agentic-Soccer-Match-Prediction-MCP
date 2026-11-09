@@ -12,7 +12,6 @@ for semantic critiques, but the numeric guarantees below never depend on it.
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 from agent.swarm.state import Critique, SwarmState

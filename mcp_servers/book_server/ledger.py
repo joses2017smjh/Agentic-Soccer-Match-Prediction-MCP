@@ -13,11 +13,10 @@ but lose (variance), and vice versa.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import date
+from dataclasses import dataclass
 from typing import Any
 
-from mcp_servers.book_server.state import BookState, Position
+from mcp_servers.book_server.state import BookState
 
 CLOSING_COLS = {
     "H": ("PSCH", "B365CH"),

@@ -50,7 +50,8 @@ import numpy as np
 
 
 class ScoreFunction(Protocol):
-    name: str
+    @property
+    def name(self) -> str: ...
 
     def per_class(self, probs: np.ndarray) -> np.ndarray:
         """(n, k) probabilities → (n, k) nonconformity scores (higher = worse)."""
@@ -247,6 +248,8 @@ class ACIConformal:
     def update(self, probs_row: np.ndarray, y: int, pred_set: list[int]) -> None:
         """Feed back a settled outcome: α_t update + pool append."""
         err = float(y not in pred_set)
+        if self.alpha_t is None:
+            raise RuntimeError("call fit() before update()")
         self.alpha_t = self.alpha_t + self.gamma * (self.alpha - err)
         self._pool.append(float(_true_scores(self.score_fn, probs_row[None, :], np.array([y]))[0]))
 

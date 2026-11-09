@@ -234,7 +234,6 @@ def make_conformal():
     ax_sets.set_yticks([1, 2, 3])
     ax_sets.set_yticklabels(["{H}", "{H,D}", "{H,D,A}"], color=INK_400, fontsize=7)
 
-    labels = ["H", "D", "A"]
     test_probs = probs_all[cal_n:]
     test_true = true_classes[cal_n:]
     n_test = len(test_probs)
@@ -439,7 +438,6 @@ def make_martingale():
     bankroll_0 = 1000.0
     base_stake = 10.0
     max_stake_frac = 0.05
-    max_match_exposure_frac = 0.15
 
     n_bets = 40
     odds = 2.0
@@ -497,7 +495,6 @@ def make_martingale():
                          fontweight="bold", fontfamily="monospace",
                          bbox=dict(boxstyle="round,pad=0.3", facecolor=SURFACE,
                                    edgecolor=INK_600, alpha=0.9))
-    clip_markers = []
 
     fig.suptitle("Reward-Hacking Defence: Per-Bet Cap + Drawdown Halt",
                  color=INK_100, fontsize=11, fontweight="bold", y=0.97)

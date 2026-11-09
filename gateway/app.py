@@ -84,7 +84,7 @@ limiter = Limiter(
     storage_uri=os.environ.get("REDIS_URL", "memory://"),
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 
 def _make_runner():
@@ -511,7 +511,6 @@ def parlay_price(request: Request, body: ParlayIn) -> dict[str, Any]:
     jointly through the grid; cross-match legs are independent.
     """
     from src.models.parlay import ParlayLeg, parlay_result_to_dict, price_parlay
-    from src.models.score_grid import fit_rho
 
     # resolve per-match xG from the Elo engine (fast path, always available)
     match_ids = {leg.match_id for leg in body.legs}

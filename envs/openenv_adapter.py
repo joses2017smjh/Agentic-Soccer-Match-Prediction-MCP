@@ -16,20 +16,19 @@ step-based Gymnasium interface.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
 import numpy as np
 
-from envs.market_env import run_episode
 from envs.real_market import Fixture, Gameweek, iter_gameweeks, load_all_seasons
 from envs.reward import compute_episode_reward
 from envs.sim_market import MarketConfig, generate_season
 from mcp_servers.book_server.ledger import settle_match
 from mcp_servers.book_server.limits import LimitConfig, check_limits
 from mcp_servers.book_server.state import BookState, Position
-from training.gym_wrapper import N_FEATURES, devig, fixture_features
+from training.gym_wrapper import N_FEATURES, fixture_features
 
 
 ENV_ID = "MarketGym-v0"

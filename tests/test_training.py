@@ -13,7 +13,6 @@ import numpy as np
 import pytest
 
 from envs.real_market import Fixture, Gameweek, load_season
-from mcp_servers.book_server.limits import LimitConfig
 from mcp_servers.book_server.state import BookState
 from training.gym_wrapper import N_FEATURES, StakingEnv, devig, fixture_features
 from training.policy import MLPPolicy

@@ -103,7 +103,7 @@ class InProcessRunner:
             ("ml-inference", "explain_prediction"): ml.run_explain,
             ("ml-inference", "get_model_card"): lambda: dict(ml.get_bundle().card),
             ("code-env", "run_python"): code.do_run,
-            ("code-env", "list_datasets"): lambda: code.list_datasets.fn(),
+            ("code-env", "list_datasets"): code.list_datasets,
         }
 
     @property
@@ -150,9 +150,9 @@ class MCPRunner:
         }
 
     @staticmethod
-    def _connections() -> dict[str, dict[str, Any]]:
+    def _connections() -> dict[str, Any]:
         """Streamable HTTP when *_URL is set (Compose); else STDIO spawn."""
-        conns: dict[str, dict[str, Any]] = {}
+        conns: dict[str, Any] = {}
         for name, env, module in [
             ("sports-data", "MCP_DATA_URL", "mcp_servers.data_server.server"),
             ("news-sentiment", "MCP_NEWS_URL", "mcp_servers.news_server.server"),

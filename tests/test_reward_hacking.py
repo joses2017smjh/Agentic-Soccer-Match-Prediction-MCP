@@ -21,10 +21,8 @@ from typing import Any
 
 import pytest
 
-from envs.market_env import Policy, run_episode
+from envs.market_env import run_episode
 from envs.real_market import Fixture, Gameweek, load_season
-from envs.reward import compute_episode_reward
-from mcp_servers.book_server.ledger import settle_match
 from mcp_servers.book_server.limits import LimitConfig, check_limits
 from mcp_servers.book_server.state import BookState, Position
 

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 from envs.episode import (
     EpisodeShape,
-    SeasonResult,
     measure_instruction_adherence,
     run_shaped_episode,
 )

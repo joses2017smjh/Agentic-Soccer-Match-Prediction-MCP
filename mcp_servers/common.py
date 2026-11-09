@@ -59,6 +59,9 @@ def ttl_cache(seconds: float = 60.0, maxsize: int = 512) -> Callable:
 def run_server(server: FastMCP) -> None:
     """STDIO by default; MCP_TRANSPORT=streamable-http inside containers."""
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
-    if transport not in ("stdio", "streamable-http"):
+    if transport == "stdio":
+        server.run(transport="stdio")
+    elif transport == "streamable-http":
+        server.run(transport="streamable-http")
+    else:
         raise ValueError(f"unsupported transport: {transport}")
-    server.run(transport=transport)

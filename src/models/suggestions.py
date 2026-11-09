@@ -20,7 +20,7 @@ so Phase B's agent can quote it verbatim without an injection surface.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

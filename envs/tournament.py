@@ -22,8 +22,8 @@ from typing import Any
 
 import numpy as np
 
-from envs.market_env import EpisodeResult, Policy, run_episode
-from envs.real_market import Fixture, Gameweek, iter_gameweeks
+from envs.market_env import Policy, run_episode
+from envs.real_market import Gameweek
 
 
 @dataclass

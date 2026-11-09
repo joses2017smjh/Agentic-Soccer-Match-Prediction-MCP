@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
-from envs.openenv_adapter import ENV_ID, ENV_VERSION, MarketGym, MarketGymConfig
+from envs.openenv_adapter import ENV_VERSION, MarketGym, MarketGymConfig
 
 
 def test_env_id():

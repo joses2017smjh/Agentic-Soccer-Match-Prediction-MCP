@@ -35,6 +35,22 @@ durable = ["langgraph-checkpoint-sqlite>=3.1"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["ui", "notebooks"]
+
+[tool.ruff.lint]
+# The CI gate is correctness only, and explicit, so a ruff upgrade cannot
+# change what fails the build:
+#   E9   syntax errors
+#   F    pyflakes: undefined names, unused imports and variables
+#   PLE  pylint errors, incl. invisible/bidirectional characters in source
+# Style rules (import order, pyupgrade) are deliberately not gated yet.
+select = ["E9", "F", "PLE"]
+
+[tool.mypy]
+# Gate: the four packages that serve requests. Third-party packages without
+# type information are skipped rather than failing the build.
+files = ["src", "agent", "gateway", "mcp_servers"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

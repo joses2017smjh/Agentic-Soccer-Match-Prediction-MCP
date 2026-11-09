@@ -5,9 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from envs.real_market import Gameweek, iter_gameweeks, load_season
+from envs.real_market import iter_gameweeks, load_season
 from envs.tournament import (
-    TournamentReport,
     _bootstrap_ci,
     is_distinguishable,
     run_tournament,
